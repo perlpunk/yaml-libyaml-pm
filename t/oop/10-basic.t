@@ -1,0 +1,45 @@
+use strict;
+use warnings;
+use Test::More;
+use YAML::XS;
+use Data::Dumper;
+
+my $xs = YAML::XS->new( indent => 8 );
+note __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$xs], ['xs']);
+
+is ref $xs, 'YAML::XS', "got YAML::XS object";
+
+my $yaml = <<'EOM';
+- foo
+- [bar]
+- key: val
+EOM
+
+my @data = $xs->load_string($yaml);
+my @exp = (
+    foo => ['bar'], { key => 'val' }
+);
+is_deeply $data[0], \@exp, 'load_string';
+note __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\@data], ['data']);
+
+my $data = {
+    this => {
+        is => [ object => ori => "ented" ],
+    },
+};
+$yaml = $xs->dump_string($data);
+
+note $yaml;
+
+my $exp = <<'EOM';
+---
+this:
+        is:
+        - object
+        - ori
+        - ented
+EOM
+
+is $yaml, $exp, "emit";
+
+done_testing;

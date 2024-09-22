@@ -1325,3 +1325,432 @@ void xxx_local_patches() {
     printf("%s", local_patches[0]);
 }
 #endif
+
+
+void
+oo_dump_document(perl_yaml_xs_t *yaml, SV *node)
+{
+    //fprintf(stderr, "==================== oo_dump_document yaml=%p\n", yaml);
+    yaml_event_t event_document_start;
+    yaml_event_t event_document_end;
+
+    yaml_document_start_event_initialize(
+        &event_document_start, NULL, NULL, NULL, 0
+    );
+    if (!yaml_emitter_emit(&yaml->emitter, &event_document_start)) {
+        croak("ERROR: %s", yaml->emitter.problem);
+    }
+
+    oo_dump_node(yaml, node);
+
+    yaml_document_end_event_initialize(&event_document_end, 1);
+    yaml_emitter_emit(&yaml->emitter, &event_document_end);
+}
+
+void
+oo_dump_node(perl_yaml_xs_t *yaml, SV *node)
+{
+    //fprintf(stderr, "==================== oo_dump_node yaml=%p\n", yaml);
+    if (SvROK(node)) {
+        SV *rnode = SvRV(node);
+        U32 ref_type = SvTYPE(rnode);
+        if (ref_type == SVt_PVHV)
+            oo_dump_hash(yaml, node);
+        else if (ref_type == SVt_PVAV) {
+            oo_dump_array(yaml, node);
+        }
+    }
+    else {
+        oo_dump_scalar(yaml, node);
+    }
+
+
+}
+
+void
+oo_dump_hash(perl_yaml_xs_t *yaml, SV *node)
+{
+    //fprintf(stderr, "==================== oo_dump_hash yaml=%p\n", yaml);
+    yaml_event_t event_mapping_start;
+    yaml_event_t event_mapping_end;
+    int i;
+    int len;
+    AV *av;
+    HV *hash = (HV *)SvRV(node);
+    HE *he;
+
+    yaml_mapping_start_event_initialize(
+        &event_mapping_start, NULL, NULL, 0, YAML_BLOCK_MAPPING_STYLE
+    );
+    yaml_emitter_emit(&yaml->emitter, &event_mapping_start);
+
+    av = newAV();
+    len = 0;
+    hv_iterinit(hash);
+    while ((he = hv_iternext(hash))) {
+        SV *key = hv_iterkeysv(he);
+        av_store(av, AvFILLp(av)+1, key); /* av_push(), really */
+        len++;
+    }
+    STORE_HASH_SORT;
+    for (i = 0; i < len; i++) {
+        SV *key = av_shift(av);
+        HE *he  = hv_fetch_ent(hash, key, 0, 0);
+        SV *val = he ? HeVAL(he) : NULL;
+        if (val == NULL) { val = &PL_sv_undef; }
+        oo_dump_node(yaml, key);
+        oo_dump_node(yaml, val);
+    }
+
+    SvREFCNT_dec(av);
+
+    yaml_mapping_end_event_initialize(&event_mapping_end);
+    yaml_emitter_emit(&yaml->emitter, &event_mapping_end);
+}
+
+void
+oo_dump_array(perl_yaml_xs_t *yaml, SV *node)
+{
+    //fprintf(stderr, "==================== oo_dump_array yaml=%p\n", yaml);
+    yaml_event_t event_sequence_start;
+    yaml_event_t event_sequence_end;
+    int i;
+    AV *array = (AV *)SvRV(node);
+    int array_size = av_len(array) + 1;
+
+    yaml_sequence_start_event_initialize(
+        &event_sequence_start, NULL, NULL, 0, YAML_BLOCK_SEQUENCE_STYLE
+    );
+    yaml_emitter_emit(&yaml->emitter, &event_sequence_start);
+
+    for (i = 0; i < array_size; i++) {
+        SV **entry = av_fetch(array, i, 0);
+        if (entry == NULL)
+            oo_dump_node(yaml, &PL_sv_undef);
+        else
+            oo_dump_node(yaml, *entry);
+    }
+
+
+    yaml_sequence_end_event_initialize(&event_sequence_end);
+    yaml_emitter_emit(&yaml->emitter, &event_sequence_end);
+}
+
+void
+oo_dump_scalar(perl_yaml_xs_t *yaml, SV *node)
+{
+    yaml_event_t event_scalar;
+    char *string;
+    STRLEN string_len;
+    int plain_implicit, quoted_implicit;
+    yaml_scalar_style_t style = YAML_PLAIN_SCALAR_STYLE;
+    plain_implicit = quoted_implicit = 1;
+
+    SV *node_clone = sv_mortalcopy(node);
+    string = SvPV_nomg(node_clone, string_len);
+
+    if (! yaml_scalar_event_initialize(
+        &event_scalar,
+        NULL,
+        NULL,
+        (unsigned char *) string,
+        (int) string_len,
+        plain_implicit,
+        quoted_implicit,
+        style
+    )) {
+        croak("Could not initialize scalar event\n");
+    }
+
+    if (! yaml_emitter_emit(&yaml->emitter, &event_scalar))
+        croak("%sEmit scalar '%s', error: %s\n",
+            ERRMSG,
+            string, yaml->emitter.problem
+        );
+}
+
+SV *
+oo_load(perl_yaml_xs_t *yaml)
+{
+    //fprintf(stderr, "========= oo_load\n");
+    dXCPT;
+
+    dXSARGS;
+    SV *node;
+
+    if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+        goto load_error;
+    if (yaml->event.type != YAML_STREAM_START_EVENT)
+        croak("%sExpected STREAM_START_EVENT; Got: %d != %d",
+            ERRMSG,
+            yaml->event.type,
+            YAML_STREAM_START_EVENT
+         );
+
+    XCPT_TRY_START {
+
+        while (1) {
+            yaml_event_delete(&yaml->event);
+            if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+                goto load_error;
+            if (yaml->event.type == YAML_STREAM_END_EVENT)
+                break;
+            node = oo_load_node(yaml);
+            yaml_event_delete(&yaml->event);
+
+            if (! node) break;
+            //XPUSHs(sv_2mortal(node));
+            XPUSHs(node);
+            if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+                goto load_error;
+            if (yaml->event.type != YAML_DOCUMENT_END_EVENT)
+                croak("%sExpected DOCUMENT_END_EVENT", ERRMSG);
+        }
+        //fprintf(stderr, "==== oo_load end\n");
+
+        if (yaml->event.type != YAML_STREAM_END_EVENT)
+            croak("%sExpected STREAM_END_EVENT; Got: %d != %d",
+                ERRMSG,
+                yaml->event.type,
+                YAML_STREAM_END_EVENT
+             );
+
+    } XCPT_TRY_END
+
+    XCPT_CATCH
+    {
+        XCPT_RETHROW;
+    }
+    PUTBACK;
+    return node;
+
+load_error:
+    croak("load: %s", (char *)yaml->parser.problem);
+}
+
+SV *
+oo_load_node(perl_yaml_xs_t *yaml)
+{
+    //fprintf(stderr, "========= oo_load_node\n");
+    SV* return_sv = NULL;
+    /* This uses stack, but avoids (severe!) memory leaks */
+    yaml_event_t uplevel_event;
+
+    uplevel_event = yaml->event;
+
+    /* Get the next parser event */
+    if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+        goto load_error;
+
+    /* These events don't need yaml_event_delete */
+    /* Some kind of error occurred */
+    //fprintf(stderr, "========= oo_load_node event=%d, uplevel=%d\n", yaml->event.type, uplevel_event.type);
+    if (yaml->event.type == YAML_NO_EVENT)
+        goto load_error;
+
+    /* Return NULL when we hit the end of a scope */
+    if (yaml->event.type == YAML_DOCUMENT_END_EVENT ||
+        yaml->event.type == YAML_MAPPING_END_EVENT ||
+        yaml->event.type == YAML_SEQUENCE_END_EVENT) {
+            /* restore the uplevel event, so it can be properly deleted */
+            //fprintf(stderr, "===== uplevel end event\n");
+            yaml->event = uplevel_event;
+            return return_sv;
+    }
+
+    switch (yaml->event.type) {
+        case YAML_MAPPING_START_EVENT:
+            return_sv = oo_load_mapping(yaml);
+            break;
+
+        case YAML_SEQUENCE_START_EVENT:
+            return_sv = oo_load_sequence(yaml);
+            break;
+
+        case YAML_SCALAR_EVENT:
+            return_sv = oo_load_scalar(yaml);
+            break;
+
+        default:
+            croak("%sInvalid event '%d' at top level", ERRMSG, (int) yaml->event.type);
+    }
+
+    yaml_event_delete(&yaml->event);
+
+    /* restore the uplevel event, so it can be properly deleted */
+    yaml->event = uplevel_event;
+
+    return return_sv;
+
+    load_error:
+        croak("%s", loader_error_msg(yaml, NULL));
+}
+
+SV *
+oo_load_sequence(perl_yaml_xs_t *yaml)
+{
+    //fprintf(stderr, "========= oo_load_sequence\n");
+    dXCPT;
+    SV *node;
+    AV *array = newAV();
+    SV *array_ref = (SV *)newRV_noinc((SV *)array);
+
+    XCPT_TRY_START {
+
+        while ((node = oo_load_node(yaml))) {
+            //fprintf(stderr, "=============== array item\n");
+            av_push(array, node);
+        }
+        //fprintf(stderr, "========= oo_load_sequence end\n");
+
+    } XCPT_TRY_END
+
+    XCPT_CATCH
+    {
+        SvREFCNT_dec(array_ref);
+        XCPT_RETHROW;
+    }
+
+    return array_ref;
+}
+
+SV *
+oo_load_mapping(perl_yaml_xs_t *yaml)
+{
+    dXCPT;
+    SV *key_node;
+    SV *value_node;
+    HV *hash = newHV();
+    SV *hash_ref = (SV *)newRV_noinc((SV *)hash);
+
+    XCPT_TRY_START {
+
+        /* Get each key string and value node and put them in the hash */
+        while ((key_node = oo_load_node(yaml))) {
+            assert(SvPOK(key_node));
+            value_node = oo_load_node(yaml);
+            if ( /* yaml->forbid_duplicate_keys && */
+                hv_exists_ent(hash, key_node, 0)
+            ) {
+                croak(
+                    "%s",
+                    loader_error_msg(
+                        yaml,
+                        form("Duplicate key '%s'", SvPV_nolen(key_node))
+                    )
+                );
+            }
+            hv_store_ent(
+                hash, sv_2mortal(key_node), value_node, 0
+            );
+        }
+
+    } XCPT_TRY_END
+
+    XCPT_CATCH
+    {
+        SvREFCNT_dec(hash_ref);
+        XCPT_RETHROW;
+    }
+
+    return hash_ref;
+}
+
+SV *
+oo_load_scalar(perl_yaml_xs_t *yaml)
+{
+    SV *scalar;
+    char *string = (char *)yaml->event.data.scalar.value;
+    //fprintf(stderr, "========= oo_load_scalar '%s'\n", string);
+    yaml_scalar_style_t style = yaml->event.data.scalar.style;
+    STRLEN length = (STRLEN)yaml->event.data.scalar.length;
+    int is_int = 0;
+    I32 flags = 0;
+    UV *uv;
+
+    if (style == YAML_PLAIN_SCALAR_STYLE) {
+        if (strEQ(string, "true")) {
+#ifdef PERL_HAVE_BOOLEANS
+            scalar = newSVsv(&PL_sv_yes);
+#else
+            scalar = &PL_sv_yes;
+#endif
+            return scalar;
+        }
+        if (strEQ(string, "false")) {
+#ifdef PERL_HAVE_BOOLEANS
+            scalar = newSVsv(&PL_sv_no);
+#else
+            scalar = &PL_sv_no;
+#endif
+            return scalar;
+        }
+        if (strEQ(string, "null")) {
+            scalar = newSV(0);
+            return scalar;
+        }
+        if (strEQ(string, ".inf")) {
+            NV nv = NV_INF;
+            string++;
+            length--;
+            return newSVnv(nv);
+        }
+        if (strEQ(string, ".nan")) {
+            NV nv = NV_NAN;
+            string++;
+            length--;
+            return newSVnv(nv);
+        }
+        if (string[0] == 45 || string[0] == 46 || (string[0] >= 48 && string[0] <= 57)) {
+            dSP;
+            scalar = newSVpvn(string, length);
+            ENTER;
+            SAVETMPS;
+            PUSHMARK(sp);
+            XPUSHs(scalar);
+            PUTBACK;
+            is_int = call_pv("YAML::XS::__is_integer", G_SCALAR);
+            SPAGAIN;
+            is_int = (POPi);
+
+            PUTBACK;
+            FREETMPS;
+            LEAVE;
+            fprintf(stderr, "================ oo_load_scalar %s\n", string);
+            if (is_int) {
+                int neg = 0;
+                if (is_int == 1 || is_int == 2) {
+                    if (string[0] == 45) neg = 1;
+                    scalar = newSVpvn(string, length);
+                    if (is_int == 1){
+                        SvIV_please(scalar);
+                        SvIOK_only(scalar);
+                    }
+                    else {
+                        SvIV_please(scalar);
+                        SvNOK_only(scalar);
+                    }
+                    return scalar;
+                }
+                if (is_int == 3) {
+//                    fprintf(stderr, "===== oct (%s): %d\n", string, is_int);
+                    string += 2;
+                    length -= 2;
+                    int num = grok_oct(string, &length, &flags, &uv);
+                    return newSViv((int) num);
+                }
+                if (is_int == 4) {
+//                    fprintf(stderr, "===== hex (%s): %d\n", string, is_int);
+                    string += 2;
+                    length -= 2;
+                    int num = grok_hex(string, &length, &flags, &uv);
+//                    fprintf(stderr, "===== hex (%s): %u\n", string, (unsigned int) num);
+                    return newSViv((int) num);
+                }
+                return scalar;
+            }
+        }
+    }
+    scalar = newSVpvn(string, length);
+    return scalar;
+}
