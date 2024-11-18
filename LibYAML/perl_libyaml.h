@@ -51,6 +51,7 @@ typedef struct {
     yaml_parser_t parser;
     yaml_emitter_t emitter;
     yaml_event_t event;
+    HV *anchors;
 } perl_yaml_xs_t;
 
 static SV *
@@ -151,6 +152,8 @@ SV *
 oo_load_mapping(perl_yaml_xs_t *yaml);
 SV *
 oo_load_scalar(perl_yaml_xs_t *yaml);
+SV *
+oo_load_alias(perl_yaml_xs_t *yaml);
 
 void
 oo_dump_document(perl_yaml_xs_t *yaml, SV *node);

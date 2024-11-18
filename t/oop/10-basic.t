@@ -1,7 +1,6 @@
 use strict;
 use warnings;
 use Test::More;
-use YAML::XS;
 use YAML::XS::LibYAML;
 use Data::Dumper;
 

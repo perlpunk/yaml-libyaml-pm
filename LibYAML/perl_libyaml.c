@@ -1477,6 +1477,8 @@ oo_load(perl_yaml_xs_t *yaml)
 
     dXSARGS;
     SV *node;
+    yaml->anchors = newHV();
+    sv_2mortal((SV *)yaml->anchors);
 
     if (!yaml_parser_parse(&yaml->parser, &yaml->event))
         goto load_error;
@@ -1497,6 +1499,7 @@ oo_load(perl_yaml_xs_t *yaml)
                 break;
             node = oo_load_node(yaml);
             yaml_event_delete(&yaml->event);
+            hv_clear(yaml->anchors);
 
             if (! node) break;
             //XPUSHs(sv_2mortal(node));
@@ -1531,7 +1534,7 @@ load_error:
 SV *
 oo_load_node(perl_yaml_xs_t *yaml)
 {
-    //fprintf(stderr, "========= oo_load_node\n");
+    //fprintf(stderr, "================================= oo_load_node\n");
     SV* return_sv = NULL;
     /* This uses stack, but avoids (severe!) memory leaks */
     yaml_event_t uplevel_event;
@@ -1571,6 +1574,10 @@ oo_load_node(perl_yaml_xs_t *yaml)
             return_sv = oo_load_scalar(yaml);
             break;
 
+        case YAML_ALIAS_EVENT:
+            return_sv = oo_load_alias(yaml);
+            break;
+
         default:
             croak("%sInvalid event '%d' at top level", ERRMSG, (int) yaml->event.type);
     }
@@ -1594,14 +1601,16 @@ oo_load_sequence(perl_yaml_xs_t *yaml)
     SV *node;
     AV *array = newAV();
     SV *array_ref = (SV *)newRV_noinc((SV *)array);
+    char *anchor = (char *)yaml->event.data.sequence_start.anchor;
 
     XCPT_TRY_START {
 
+        if (anchor)
+            hv_store(yaml->anchors, anchor, strlen(anchor), SvREFCNT_inc(array_ref), 0);
+
         while ((node = oo_load_node(yaml))) {
-            //fprintf(stderr, "=============== array item\n");
             av_push(array, node);
         }
-        //fprintf(stderr, "========= oo_load_sequence end\n");
 
     } XCPT_TRY_END
 
@@ -1617,13 +1626,18 @@ oo_load_sequence(perl_yaml_xs_t *yaml)
 SV *
 oo_load_mapping(perl_yaml_xs_t *yaml)
 {
+    //fprintf(stderr, "========= oo_load_mapping\n");
     dXCPT;
     SV *key_node;
     SV *value_node;
     HV *hash = newHV();
     SV *hash_ref = (SV *)newRV_noinc((SV *)hash);
+    char *anchor = (char *)yaml->event.data.mapping_start.anchor;
 
     XCPT_TRY_START {
+
+        if (anchor)
+            hv_store(yaml->anchors, anchor, strlen(anchor), SvREFCNT_inc(hash_ref), 0);
 
         /* Get each key string and value node and put them in the hash */
         while ((key_node = oo_load_node(yaml))) {
@@ -1659,10 +1673,12 @@ oo_load_mapping(perl_yaml_xs_t *yaml)
 SV *
 oo_load_scalar(perl_yaml_xs_t *yaml)
 {
+    //fprintf(stderr, "========= oo_load_scalar\n");
     SV *scalar;
     char *string = (char *)yaml->event.data.scalar.value;
     //fprintf(stderr, "========= oo_load_scalar '%s'\n", string);
     yaml_scalar_style_t style = yaml->event.data.scalar.style;
+    char *anchor = (char *)yaml->event.data.scalar.anchor;
     STRLEN length = (STRLEN)yaml->event.data.scalar.length;
     int is_int = 0;
     I32 flags = 0;
@@ -1716,7 +1732,7 @@ oo_load_scalar(perl_yaml_xs_t *yaml)
             PUTBACK;
             FREETMPS;
             LEAVE;
-            fprintf(stderr, "================ oo_load_scalar %s\n", string);
+            //fprintf(stderr, "================ oo_load_scalar %s\n", string);
             if (is_int) {
                 int neg = 0;
                 if (is_int == 1 || is_int == 2) {
@@ -1749,8 +1765,27 @@ oo_load_scalar(perl_yaml_xs_t *yaml)
                 }
                 return scalar;
             }
+            if (anchor)
+                hv_store(yaml->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
+
+            return scalar;
         }
     }
     scalar = newSVpvn(string, length);
+    if (anchor) {
+        hv_store(yaml->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
+    }
     return scalar;
 }
+
+SV *
+oo_load_alias(perl_yaml_xs_t *yaml)
+{
+    char *anchor = (char *)yaml->event.data.alias.anchor;
+    //fprintf(stderr, "========= oo_load_alias %s\n", anchor);
+    SV **entry = hv_fetch(yaml->anchors, anchor, strlen(anchor), 0);
+    if (entry)
+        return SvREFCNT_inc(*entry);
+    croak("%sNo anchor for alias '%s'", ERRMSG, anchor);
+}
+
