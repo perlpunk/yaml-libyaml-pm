@@ -2,10 +2,11 @@ use strict;
 use warnings;
 use Test::More;
 use YAML::XS;
+use YAML::XS::LibYAML;
 use Data::Dumper;
 use v5.10;
 
-my $xs = YAML::XS->new();
+my $xs = YAML::XS::LibYAML->new();
 
 my $yaml = <<'EOM';
 - test
