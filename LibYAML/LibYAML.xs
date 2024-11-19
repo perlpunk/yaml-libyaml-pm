@@ -172,6 +172,10 @@ dump_string(SV *object, SV *data)
                 if (!yaml_emitter_emit(&yaml->emitter, &event_stream_start))
                     croak("ERROR: %s", yaml->emitter.problem);
 
+                yaml->anchors = newHV();
+                sv_2mortal((SV *)yaml->anchors);
+                yaml->anchor = 0;
+                oo_dump_prewalk(yaml, data);
                 oo_dump_document(yaml, data);
 
                 yaml_stream_end_event_initialize(&event_stream_end);

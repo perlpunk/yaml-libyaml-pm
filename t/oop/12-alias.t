@@ -26,4 +26,31 @@ is $data[0]->[0], $data[0]->[3], 'scalar alias loaded correctly';
 is $data[0]->[1], $data[0]->[4], 'sequence alias loaded correctly';
 is $data[0]->[2], $data[0]->[5], 'mapping alias loaded correctly';
 
+$yaml = $xs->dump_string($data[0]);
+
+my $exp = <<'EOM';
+---
+- foo
+- &1
+  - bar
+- &2
+  key: val
+- foo
+- *1
+- *2
+EOM
+is $yaml, $exp, 'aliases are dumped correctly';
+
+my $circle = [ 'x' ];
+$circle->[1] = $circle;
+
+$xs = YAML::XS::LibYAML->new;
+$yaml = $xs->dump_string($circle);
+$exp = <<'EOM';
+--- &1
+- x
+- *1
+EOM
+is $yaml, $exp, 'circular refs are dumped correctly';
+
 done_testing;
