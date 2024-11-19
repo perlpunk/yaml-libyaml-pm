@@ -1328,49 +1328,49 @@ void xxx_local_patches() {
 
 
 void
-oo_dump_document(perl_yaml_xs_t *yaml, SV *node)
+oo_dump_document(perl_yaml_xs_t *self, SV *node)
 {
-    //fprintf(stderr, "==================== oo_dump_document yaml=%p\n", yaml);
+    //fprintf(stderr, "==================== oo_dump_document self=%p\n", self);
     yaml_event_t event_document_start;
     yaml_event_t event_document_end;
 
     yaml_document_start_event_initialize(
         &event_document_start, NULL, NULL, NULL, 0
     );
-    if (!yaml_emitter_emit(&yaml->emitter, &event_document_start)) {
-        croak("ERROR: %s", yaml->emitter.problem);
+    if (!yaml_emitter_emit(&self->emitter, &event_document_start)) {
+        croak("ERROR: %s", self->emitter.problem);
     }
 
-    oo_dump_node(yaml, node);
+    oo_dump_node(self, node);
 
     yaml_document_end_event_initialize(&event_document_end, 1);
-    yaml_emitter_emit(&yaml->emitter, &event_document_end);
+    yaml_emitter_emit(&self->emitter, &event_document_end);
 }
 
 void
-oo_dump_node(perl_yaml_xs_t *yaml, SV *node)
+oo_dump_node(perl_yaml_xs_t *self, SV *node)
 {
-    //fprintf(stderr, "==================== oo_dump_node yaml=%p\n", yaml);
+    //fprintf(stderr, "==================== oo_dump_node self=%p\n", self);
     if (SvROK(node)) {
         SV *rnode = SvRV(node);
         U32 ref_type = SvTYPE(rnode);
         if (ref_type == SVt_PVHV)
-            oo_dump_hash(yaml, node);
+            oo_dump_hash(self, node);
         else if (ref_type == SVt_PVAV) {
-            oo_dump_array(yaml, node);
+            oo_dump_array(self, node);
         }
     }
     else {
-        oo_dump_scalar(yaml, node);
+        oo_dump_scalar(self, node);
     }
 
 
 }
 
 void
-oo_dump_hash(perl_yaml_xs_t *yaml, SV *node)
+oo_dump_hash(perl_yaml_xs_t *self, SV *node)
 {
-    //fprintf(stderr, "==================== oo_dump_hash yaml=%p\n", yaml);
+    //fprintf(stderr, "==================== oo_dump_hash self=%p\n", self);
     yaml_event_t event_mapping_start;
     yaml_event_t event_mapping_end;
     int i;
@@ -1382,7 +1382,7 @@ oo_dump_hash(perl_yaml_xs_t *yaml, SV *node)
     yaml_mapping_start_event_initialize(
         &event_mapping_start, NULL, NULL, 0, YAML_BLOCK_MAPPING_STYLE
     );
-    yaml_emitter_emit(&yaml->emitter, &event_mapping_start);
+    yaml_emitter_emit(&self->emitter, &event_mapping_start);
 
     av = newAV();
     len = 0;
@@ -1398,20 +1398,20 @@ oo_dump_hash(perl_yaml_xs_t *yaml, SV *node)
         HE *he  = hv_fetch_ent(hash, key, 0, 0);
         SV *val = he ? HeVAL(he) : NULL;
         if (val == NULL) { val = &PL_sv_undef; }
-        oo_dump_node(yaml, key);
-        oo_dump_node(yaml, val);
+        oo_dump_node(self, key);
+        oo_dump_node(self, val);
     }
 
     SvREFCNT_dec(av);
 
     yaml_mapping_end_event_initialize(&event_mapping_end);
-    yaml_emitter_emit(&yaml->emitter, &event_mapping_end);
+    yaml_emitter_emit(&self->emitter, &event_mapping_end);
 }
 
 void
-oo_dump_array(perl_yaml_xs_t *yaml, SV *node)
+oo_dump_array(perl_yaml_xs_t *self, SV *node)
 {
-    //fprintf(stderr, "==================== oo_dump_array yaml=%p\n", yaml);
+    //fprintf(stderr, "==================== oo_dump_array self=%p\n", self);
     yaml_event_t event_sequence_start;
     yaml_event_t event_sequence_end;
     int i;
@@ -1421,23 +1421,23 @@ oo_dump_array(perl_yaml_xs_t *yaml, SV *node)
     yaml_sequence_start_event_initialize(
         &event_sequence_start, NULL, NULL, 0, YAML_BLOCK_SEQUENCE_STYLE
     );
-    yaml_emitter_emit(&yaml->emitter, &event_sequence_start);
+    yaml_emitter_emit(&self->emitter, &event_sequence_start);
 
     for (i = 0; i < array_size; i++) {
         SV **entry = av_fetch(array, i, 0);
         if (entry == NULL)
-            oo_dump_node(yaml, &PL_sv_undef);
+            oo_dump_node(self, &PL_sv_undef);
         else
-            oo_dump_node(yaml, *entry);
+            oo_dump_node(self, *entry);
     }
 
 
     yaml_sequence_end_event_initialize(&event_sequence_end);
-    yaml_emitter_emit(&yaml->emitter, &event_sequence_end);
+    yaml_emitter_emit(&self->emitter, &event_sequence_end);
 }
 
 void
-oo_dump_scalar(perl_yaml_xs_t *yaml, SV *node)
+oo_dump_scalar(perl_yaml_xs_t *self, SV *node)
 {
     yaml_event_t event_scalar;
     char *string;
@@ -1462,59 +1462,59 @@ oo_dump_scalar(perl_yaml_xs_t *yaml, SV *node)
         croak("Could not initialize scalar event\n");
     }
 
-    if (! yaml_emitter_emit(&yaml->emitter, &event_scalar))
+    if (! yaml_emitter_emit(&self->emitter, &event_scalar))
         croak("%sEmit scalar '%s', error: %s\n",
             ERRMSG,
-            string, yaml->emitter.problem
+            string, self->emitter.problem
         );
 }
 
 SV *
-oo_load(perl_yaml_xs_t *yaml)
+oo_load(perl_yaml_xs_t *self)
 {
     //fprintf(stderr, "========= oo_load\n");
     dXCPT;
 
     dXSARGS;
     SV *node;
-    yaml->anchors = newHV();
-    sv_2mortal((SV *)yaml->anchors);
+    self->anchors = newHV();
+    sv_2mortal((SV *)self->anchors);
 
-    if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+    if (!yaml_parser_parse(&self->parser, &self->event))
         goto load_error;
-    if (yaml->event.type != YAML_STREAM_START_EVENT)
+    if (self->event.type != YAML_STREAM_START_EVENT)
         croak("%sExpected STREAM_START_EVENT; Got: %d != %d",
             ERRMSG,
-            yaml->event.type,
+            self->event.type,
             YAML_STREAM_START_EVENT
          );
 
     XCPT_TRY_START {
 
         while (1) {
-            yaml_event_delete(&yaml->event);
-            if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+            yaml_event_delete(&self->event);
+            if (!yaml_parser_parse(&self->parser, &self->event))
                 goto load_error;
-            if (yaml->event.type == YAML_STREAM_END_EVENT)
+            if (self->event.type == YAML_STREAM_END_EVENT)
                 break;
-            node = oo_load_node(yaml);
-            yaml_event_delete(&yaml->event);
-            hv_clear(yaml->anchors);
+            node = oo_load_node(self);
+            yaml_event_delete(&self->event);
+            hv_clear(self->anchors);
 
             if (! node) break;
             //XPUSHs(sv_2mortal(node));
             XPUSHs(node);
-            if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+            if (!yaml_parser_parse(&self->parser, &self->event))
                 goto load_error;
-            if (yaml->event.type != YAML_DOCUMENT_END_EVENT)
+            if (self->event.type != YAML_DOCUMENT_END_EVENT)
                 croak("%sExpected DOCUMENT_END_EVENT", ERRMSG);
         }
         //fprintf(stderr, "==== oo_load end\n");
 
-        if (yaml->event.type != YAML_STREAM_END_EVENT)
+        if (self->event.type != YAML_STREAM_END_EVENT)
             croak("%sExpected STREAM_END_EVENT; Got: %d != %d",
                 ERRMSG,
-                yaml->event.type,
+                self->event.type,
                 YAML_STREAM_END_EVENT
              );
 
@@ -1528,87 +1528,87 @@ oo_load(perl_yaml_xs_t *yaml)
     return node;
 
 load_error:
-    croak("load: %s", (char *)yaml->parser.problem);
+    croak("load: %s", (char *)self->parser.problem);
 }
 
 SV *
-oo_load_node(perl_yaml_xs_t *yaml)
+oo_load_node(perl_yaml_xs_t *self)
 {
     //fprintf(stderr, "================================= oo_load_node\n");
     SV* return_sv = NULL;
     /* This uses stack, but avoids (severe!) memory leaks */
     yaml_event_t uplevel_event;
 
-    uplevel_event = yaml->event;
+    uplevel_event = self->event;
 
     /* Get the next parser event */
-    if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+    if (!yaml_parser_parse(&self->parser, &self->event))
         goto load_error;
 
     /* These events don't need yaml_event_delete */
     /* Some kind of error occurred */
-    //fprintf(stderr, "========= oo_load_node event=%d, uplevel=%d\n", yaml->event.type, uplevel_event.type);
-    if (yaml->event.type == YAML_NO_EVENT)
+    //fprintf(stderr, "========= oo_load_node event=%d, uplevel=%d\n", self->event.type, uplevel_event.type);
+    if (self->event.type == YAML_NO_EVENT)
         goto load_error;
 
     /* Return NULL when we hit the end of a scope */
-    if (yaml->event.type == YAML_DOCUMENT_END_EVENT ||
-        yaml->event.type == YAML_MAPPING_END_EVENT ||
-        yaml->event.type == YAML_SEQUENCE_END_EVENT) {
+    if (self->event.type == YAML_DOCUMENT_END_EVENT ||
+        self->event.type == YAML_MAPPING_END_EVENT ||
+        self->event.type == YAML_SEQUENCE_END_EVENT) {
             /* restore the uplevel event, so it can be properly deleted */
             //fprintf(stderr, "===== uplevel end event\n");
-            yaml->event = uplevel_event;
+            self->event = uplevel_event;
             return return_sv;
     }
 
-    switch (yaml->event.type) {
+    switch (self->event.type) {
         case YAML_MAPPING_START_EVENT:
-            return_sv = oo_load_mapping(yaml);
+            return_sv = oo_load_mapping(self);
             break;
 
         case YAML_SEQUENCE_START_EVENT:
-            return_sv = oo_load_sequence(yaml);
+            return_sv = oo_load_sequence(self);
             break;
 
         case YAML_SCALAR_EVENT:
-            return_sv = oo_load_scalar(yaml);
+            return_sv = oo_load_scalar(self);
             break;
 
         case YAML_ALIAS_EVENT:
-            return_sv = oo_load_alias(yaml);
+            return_sv = oo_load_alias(self);
             break;
 
         default:
-            croak("%sInvalid event '%d' at top level", ERRMSG, (int) yaml->event.type);
+            croak("%sInvalid event '%d' at top level", ERRMSG, (int) self->event.type);
     }
 
-    yaml_event_delete(&yaml->event);
+    yaml_event_delete(&self->event);
 
     /* restore the uplevel event, so it can be properly deleted */
-    yaml->event = uplevel_event;
+    self->event = uplevel_event;
 
     return return_sv;
 
     load_error:
-        croak("%s", loader_error_msg(yaml, NULL));
+        croak("%s", loader_error_msg(self, NULL));
 }
 
 SV *
-oo_load_sequence(perl_yaml_xs_t *yaml)
+oo_load_sequence(perl_yaml_xs_t *self)
 {
     //fprintf(stderr, "========= oo_load_sequence\n");
     dXCPT;
     SV *node;
     AV *array = newAV();
     SV *array_ref = (SV *)newRV_noinc((SV *)array);
-    char *anchor = (char *)yaml->event.data.sequence_start.anchor;
+    char *anchor = (char *)self->event.data.sequence_start.anchor;
 
     XCPT_TRY_START {
 
         if (anchor)
-            hv_store(yaml->anchors, anchor, strlen(anchor), SvREFCNT_inc(array_ref), 0);
+            hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(array_ref), 0);
 
-        while ((node = oo_load_node(yaml))) {
+        while ((node = oo_load_node(self))) {
             av_push(array, node);
         }
 
@@ -1624,7 +1624,7 @@ oo_load_sequence(perl_yaml_xs_t *yaml)
 }
 
 SV *
-oo_load_mapping(perl_yaml_xs_t *yaml)
+oo_load_mapping(perl_yaml_xs_t *self)
 {
     //fprintf(stderr, "========= oo_load_mapping\n");
     dXCPT;
@@ -1632,24 +1632,24 @@ oo_load_mapping(perl_yaml_xs_t *yaml)
     SV *value_node;
     HV *hash = newHV();
     SV *hash_ref = (SV *)newRV_noinc((SV *)hash);
-    char *anchor = (char *)yaml->event.data.mapping_start.anchor;
+    char *anchor = (char *)self->event.data.mapping_start.anchor;
 
     XCPT_TRY_START {
 
         if (anchor)
-            hv_store(yaml->anchors, anchor, strlen(anchor), SvREFCNT_inc(hash_ref), 0);
+            hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(hash_ref), 0);
 
         /* Get each key string and value node and put them in the hash */
-        while ((key_node = oo_load_node(yaml))) {
+        while ((key_node = oo_load_node(self))) {
             assert(SvPOK(key_node));
-            value_node = oo_load_node(yaml);
-            if ( /* yaml->forbid_duplicate_keys && */
+            value_node = oo_load_node(self);
+            if ( /* self->forbid_duplicate_keys && */
                 hv_exists_ent(hash, key_node, 0)
             ) {
                 croak(
                     "%s",
                     loader_error_msg(
-                        yaml,
+                        self,
                         form("Duplicate key '%s'", SvPV_nolen(key_node))
                     )
                 );
@@ -1671,15 +1671,15 @@ oo_load_mapping(perl_yaml_xs_t *yaml)
 }
 
 SV *
-oo_load_scalar(perl_yaml_xs_t *yaml)
+oo_load_scalar(perl_yaml_xs_t *self)
 {
     //fprintf(stderr, "========= oo_load_scalar\n");
     SV *scalar;
-    char *string = (char *)yaml->event.data.scalar.value;
+    char *string = (char *)self->event.data.scalar.value;
     //fprintf(stderr, "========= oo_load_scalar '%s'\n", string);
-    yaml_scalar_style_t style = yaml->event.data.scalar.style;
-    char *anchor = (char *)yaml->event.data.scalar.anchor;
-    STRLEN length = (STRLEN)yaml->event.data.scalar.length;
+    yaml_scalar_style_t style = self->event.data.scalar.style;
+    char *anchor = (char *)self->event.data.scalar.anchor;
+    STRLEN length = (STRLEN)self->event.data.scalar.length;
     int is_int = 0;
     I32 flags = 0;
     UV *uv;
@@ -1766,24 +1766,24 @@ oo_load_scalar(perl_yaml_xs_t *yaml)
                 return scalar;
             }
             if (anchor)
-                hv_store(yaml->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
+                hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
 
             return scalar;
         }
     }
     scalar = newSVpvn(string, length);
     if (anchor) {
-        hv_store(yaml->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
+        hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
     }
     return scalar;
 }
 
 SV *
-oo_load_alias(perl_yaml_xs_t *yaml)
+oo_load_alias(perl_yaml_xs_t *self)
 {
-    char *anchor = (char *)yaml->event.data.alias.anchor;
+    char *anchor = (char *)self->event.data.alias.anchor;
     //fprintf(stderr, "========= oo_load_alias %s\n", anchor);
-    SV **entry = hv_fetch(yaml->anchors, anchor, strlen(anchor), 0);
+    SV **entry = hv_fetch(self->anchors, anchor, strlen(anchor), 0);
     if (entry)
         return SvREFCNT_inc(*entry);
     croak("%sNo anchor for alias '%s'", ERRMSG, anchor);

@@ -143,26 +143,26 @@ append_output(void *, unsigned char *, size_t size);
 
 
 SV *
-oo_load(perl_yaml_xs_t *yaml);
+oo_load(perl_yaml_xs_t *);
 SV *
-oo_load_node(perl_yaml_xs_t *yaml);
+oo_load_node(perl_yaml_xs_t *);
 SV *
-oo_load_sequence(perl_yaml_xs_t *yaml);
+oo_load_sequence(perl_yaml_xs_t *);
 SV *
-oo_load_mapping(perl_yaml_xs_t *yaml);
+oo_load_mapping(perl_yaml_xs_t *);
 SV *
-oo_load_scalar(perl_yaml_xs_t *yaml);
+oo_load_scalar(perl_yaml_xs_t *);
 SV *
-oo_load_alias(perl_yaml_xs_t *yaml);
+oo_load_alias(perl_yaml_xs_t *);
 
 void
-oo_dump_document(perl_yaml_xs_t *yaml, SV *node);
+oo_dump_document(perl_yaml_xs_t *, SV *node);
 void
-oo_dump_node(perl_yaml_xs_t *yaml, SV *node);
+oo_dump_node(perl_yaml_xs_t *, SV *node);
 void
-oo_dump_hash(perl_yaml_xs_t *yaml, SV *node);
+oo_dump_hash(perl_yaml_xs_t *, SV *node);
 void
-oo_dump_array(perl_yaml_xs_t *yaml, SV *node);
+oo_dump_array(perl_yaml_xs_t *, SV *node);
 void
-oo_dump_scalar(perl_yaml_xs_t *yaml, SV *node);
+oo_dump_scalar(perl_yaml_xs_t *, SV *node);
 
