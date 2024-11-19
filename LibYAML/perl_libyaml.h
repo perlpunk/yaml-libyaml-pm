@@ -53,6 +53,7 @@ typedef struct {
     yaml_event_t event;
     long anchor;
     HV *anchors;
+    int indent;
 } perl_yaml_xs_t;
 
 static SV *

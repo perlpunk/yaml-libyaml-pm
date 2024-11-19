@@ -22,6 +22,9 @@ my @exp = (
 is_deeply $data[0], \@exp, 'load_string';
 note __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\@data], ['data']);
 
+@data = $xs->load_string('foo: bar');
+is_deeply $data[0], { foo => 'bar' }, 'repeated load_string';
+
 my $data = {
     this => {
         is => [ object => ori => "ented" ],
@@ -40,6 +43,13 @@ this:
         - ented
 EOM
 
-is $yaml, $exp, "emit";
+is $yaml, $exp, 'dump';
+
+$yaml = $xs->dump_string(23);
+note $yaml;
+my $exp = <<'EOM';
+--- 23
+EOM
+is $yaml, $exp, 'repeated dump';
 
 done_testing;

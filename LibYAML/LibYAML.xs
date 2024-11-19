@@ -55,11 +55,8 @@ new(char *class_name, ...)
         XCPT_TRY_START
         {
             yaml = (perl_yaml_xs_t*) malloc(sizeof(perl_yaml_xs_t));
+            yaml->indent = 4;
             hash = newHV();
-
-            yaml_parser_initialize(&yaml->parser);
-            yaml_emitter_initialize(&yaml->emitter);
-            yaml_emitter_set_unicode(&yaml->emitter, 1);
 
             if (items > 1) {
                 for (i = 1; i < items; i+=2) {
@@ -73,7 +70,7 @@ new(char *class_name, ...)
                             SV *indent_sv = newSViv(indent);
                             //fprintf(stderr, "==== %d: %s=%d\n", i, key, indent);
                             hv_store(hash, "indent", 6, indent_sv, 0);
-                            yaml_emitter_set_indent(&yaml->emitter, indent);
+                            yaml->indent = indent;
                         }
                     }
                 }
@@ -119,6 +116,8 @@ load_string(SV *object, SV *string)
         {
             if (val && SvOK(*val) && SvIOK(*val)) {
                 yaml = INT2PTR(perl_yaml_xs_t*, SvIV(*val));
+
+                yaml_parser_initialize(&yaml->parser);
                 fprintf(stderr, "=============== load_string p: %p\n", yaml);
                 fprintf(stderr, "=============== load_string parser: %p\n", &yaml->parser);
                 yaml_parser_set_input_string(
@@ -160,6 +159,10 @@ dump_string(SV *object, SV *data)
         {
             if (val && SvOK(*val) && SvIOK(*val)) {
                 yaml = INT2PTR(perl_yaml_xs_t*, SvIV(*val));
+
+                yaml_emitter_initialize(&yaml->emitter);
+                yaml_emitter_set_unicode(&yaml->emitter, 1);
+                yaml_emitter_set_indent(&yaml->emitter, yaml->indent);
                 //fprintf(stderr, "=============== dump_string p: %p\n", yaml);
                 //fprintf(stderr, "=============== dump_string parser: %p\n", &yaml->parser);
 
