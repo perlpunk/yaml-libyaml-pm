@@ -1,13 +1,13 @@
 use strict;
 use warnings;
 use Test::More;
-use YAML::XS::LibYAML;
+use YAML::XS;
 use Data::Dumper;
 
-my $xs = YAML::XS::LibYAML->new( indent => 8 );
+my $xs = YAML::XS->new( indent => 8 );
 #note __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$xs], ['xs']);
 
-is ref $xs, 'YAML::XS::LibYAML', "got YAML::XS object";
+is ref $xs, 'YAML::XS', "got YAML::XS object";
 
 my $yaml = <<'EOM';
 - foo

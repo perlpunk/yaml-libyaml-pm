@@ -1,10 +1,10 @@
 use strict;
 use warnings;
 use Test::More;
-use YAML::XS::LibYAML;
+use YAML::XS;
 use Data::Dumper;
 
-my $xs = YAML::XS::LibYAML->new;
+my $xs = YAML::XS->new;
 
 my $yaml = <<'EOM';
 - &SCALAR foo
@@ -44,7 +44,6 @@ is $yaml, $exp, 'aliases are dumped correctly';
 my $circle = [ 'x' ];
 $circle->[1] = $circle;
 
-$xs = YAML::XS::LibYAML->new;
 $yaml = $xs->dump_string($circle);
 $exp = <<'EOM';
 --- &1
