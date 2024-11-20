@@ -112,7 +112,7 @@ load_string(SV *object, SV *string)
         val = hv_fetch(hash, "ptr", 3, TRUE);
         yaml_str = (const unsigned char *)SvPV_const(string, yaml_len);
 
-        fprintf(stderr, "=============== load_string '%s'\n", yaml_str);
+        //fprintf(stderr, "=============== load_string '%s'\n", yaml_str);
         XCPT_TRY_START
         {
             if (val && SvOK(*val) && SvIOK(*val)) {
@@ -120,7 +120,7 @@ load_string(SV *object, SV *string)
                 yaml->document = 0;
 
                 yaml_parser_initialize(&yaml->parser);
-                fprintf(stderr, "=============== load_string p: %p\n", yaml);
+                //fprintf(stderr, "=============== load_string p: %p\n", yaml);
                 yaml_parser_set_input_string(
                     &yaml->parser,
                     yaml_str,
@@ -188,7 +188,7 @@ load_string(SV *object, SV *string)
     }
 
 SV *
-dump_string(SV *object, SV *data)
+dump_string(SV *object, ...)
     PPCODE:
     {
         dXCPT;
@@ -198,6 +198,7 @@ dump_string(SV *object, SV *data)
         yaml_event_t event_stream_start;
         yaml_event_t event_stream_end;
         SV *string = newSVpvn("", 0);
+        int i;
 
         //fprintf(stderr, "=============== dump_string\n");
         hash = (HV*)(SvROK(object)? SvRV(object): object);
@@ -225,9 +226,12 @@ dump_string(SV *object, SV *data)
 
                 yaml->anchors = newHV();
                 sv_2mortal((SV *)yaml->anchors);
-                yaml->anchor = 0;
-                oo_dump_prewalk(yaml, data);
-                oo_dump_document(yaml, data);
+                for (i = 1; i < items; i++) {
+                    yaml->anchor = 0;
+                    oo_dump_prewalk(yaml, ST(i));
+                    oo_dump_document(yaml, ST(i));
+                    hv_clear(yaml->anchors);
+                }
 
                 yaml_stream_end_event_initialize(&event_stream_end);
                 if (!yaml_emitter_emit(&yaml->emitter, &event_stream_end)) {
@@ -242,6 +246,7 @@ dump_string(SV *object, SV *data)
 
         XCPT_CATCH
         {
+            yaml_emitter_delete(&yaml->emitter);
             XCPT_RETHROW;
         }
 
@@ -258,7 +263,7 @@ DESTROY(SV *object)
         HV *hash;
         SV **val;
 
-        fprintf(stderr, "=============== DESTROY\n");
+        //fprintf(stderr, "=============== DESTROY\n");
         hash = (HV*)(SvROK(object)? SvRV(object): object);
         val = hv_fetch(hash, "ptr", 3, TRUE);
         if (val && SvOK(*val) && SvIOK(*val)) {

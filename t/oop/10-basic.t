@@ -5,7 +5,7 @@ use YAML::XS::LibYAML;
 use Data::Dumper;
 
 my $xs = YAML::XS::LibYAML->new( indent => 8 );
-note __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$xs], ['xs']);
+#note __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$xs], ['xs']);
 
 is ref $xs, 'YAML::XS::LibYAML', "got YAML::XS object";
 
@@ -28,7 +28,7 @@ is_deeply $data, \@exp, 'load_string scalar context';
 my @data = $xs->load_string($yaml);
 is_deeply $data[0], \@exp, 'load_string list context, first document';
 is_deeply $data[1], { foo => 'bar' }, 'load_string list context, second document';
-note __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\@data], ['data']);
+#note __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\@data], ['data']);
 
 
 @data = $xs->load_string('foo: bar');
@@ -41,7 +41,7 @@ $data = {
 };
 $yaml = $xs->dump_string($data);
 
-note $yaml;
+#note $yaml;
 
 my $exp = <<'EOM';
 ---
@@ -52,13 +52,17 @@ this:
         - ented
 EOM
 
-is $yaml, $exp, 'dump';
+is $yaml, $exp, 'dump_string';
 
-$yaml = $xs->dump_string(23);
-note $yaml;
+@data = ({ doc => 1 }, { doc => 2 });
+$yaml = $xs->dump_string(@data);
+#note $yaml;
 $exp = <<'EOM';
---- 23
+---
+doc: 1
+---
+doc: 2
 EOM
-is $yaml, $exp, 'repeated dump';
+is $yaml, $exp, 'dump multiple documents';
 
 done_testing;
