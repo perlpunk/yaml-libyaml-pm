@@ -56,6 +56,8 @@ new(char *class_name, ...)
         {
             yaml = (perl_yaml_xs_t*) malloc(sizeof(perl_yaml_xs_t));
             yaml->indent = 2;
+            yaml_parser_initialize(&yaml->parser);
+            yaml_emitter_initialize(&yaml->emitter);
             hash = newHV();
 
             if (items > 1) {
@@ -176,7 +178,6 @@ load_string(SV *object, SV *string)
 
         XCPT_CATCH
         {
-            yaml_parser_delete(&yaml->parser);
             XCPT_RETHROW;
         }
 
@@ -246,7 +247,6 @@ dump_string(SV *object, ...)
 
         XCPT_CATCH
         {
-            yaml_emitter_delete(&yaml->emitter);
             XCPT_RETHROW;
         }
 
@@ -268,9 +268,7 @@ DESTROY(SV *object)
         val = hv_fetch(hash, "ptr", 3, TRUE);
         if (val && SvOK(*val) && SvIOK(*val)) {
             yaml = INT2PTR(perl_yaml_xs_t*, SvIV(*val));
-            yaml_parser_initialize(&yaml->parser);
             yaml_parser_delete(&yaml->parser);
-            yaml_emitter_initialize(&yaml->emitter);
             yaml_emitter_delete(&yaml->emitter);
             free(yaml);
         }
