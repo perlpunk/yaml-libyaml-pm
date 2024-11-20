@@ -1563,68 +1563,6 @@ oo_get_yaml_anchor(perl_yaml_xs_t *self, SV *node)
 }
 
 SV *
-oo_load(perl_yaml_xs_t *self)
-{
-    //fprintf(stderr, "========= oo_load\n");
-    dXCPT;
-
-    dXSARGS;
-    SV *node;
-    self->anchors = newHV();
-    sv_2mortal((SV *)self->anchors);
-
-    if (!yaml_parser_parse(&self->parser, &self->event))
-        goto load_error;
-    if (self->event.type != YAML_STREAM_START_EVENT)
-        croak("%sExpected STREAM_START_EVENT; Got: %d != %d",
-            ERRMSG,
-            self->event.type,
-            YAML_STREAM_START_EVENT
-         );
-
-    XCPT_TRY_START {
-
-        while (1) {
-            yaml_event_delete(&self->event);
-            if (!yaml_parser_parse(&self->parser, &self->event))
-                goto load_error;
-            if (self->event.type == YAML_STREAM_END_EVENT)
-                break;
-            node = oo_load_node(self);
-            yaml_event_delete(&self->event);
-            hv_clear(self->anchors);
-
-            if (! node) break;
-            //XPUSHs(sv_2mortal(node));
-            XPUSHs(node);
-            if (!yaml_parser_parse(&self->parser, &self->event))
-                goto load_error;
-            if (self->event.type != YAML_DOCUMENT_END_EVENT)
-                croak("%sExpected DOCUMENT_END_EVENT", ERRMSG);
-        }
-        //fprintf(stderr, "==== oo_load end\n");
-
-        if (self->event.type != YAML_STREAM_END_EVENT)
-            croak("%sExpected STREAM_END_EVENT; Got: %d != %d",
-                ERRMSG,
-                self->event.type,
-                YAML_STREAM_END_EVENT
-             );
-
-    } XCPT_TRY_END
-
-    XCPT_CATCH
-    {
-        XCPT_RETHROW;
-    }
-    PUTBACK;
-    return node;
-
-load_error:
-    croak("load: %s", (char *)self->parser.problem);
-}
-
-SV *
 oo_load_node(perl_yaml_xs_t *self)
 {
     //fprintf(stderr, "================================= oo_load_node\n");

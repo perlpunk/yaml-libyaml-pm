@@ -54,6 +54,7 @@ typedef struct {
     long anchor;
     HV *anchors;
     int indent;
+    int document;
 } perl_yaml_xs_t;
 
 static SV *
@@ -144,8 +145,6 @@ int
 append_output(void *, unsigned char *, size_t size);
 
 
-SV *
-oo_load(perl_yaml_xs_t *);
 SV *
 oo_load_node(perl_yaml_xs_t *);
 SV *

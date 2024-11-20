@@ -55,7 +55,7 @@ new(char *class_name, ...)
         XCPT_TRY_START
         {
             yaml = (perl_yaml_xs_t*) malloc(sizeof(perl_yaml_xs_t));
-            yaml->indent = 4;
+            yaml->indent = 2;
             hash = newHV();
 
             if (items > 1) {
@@ -106,6 +106,7 @@ load_string(SV *object, SV *string)
         STRLEN yaml_len;
         const unsigned char *yaml_str;
         SV *node;
+        int multi = 0;
 
         hash = (HV*)(SvROK(object)? SvRV(object): object);
         val = hv_fetch(hash, "ptr", 3, TRUE);
@@ -116,27 +117,74 @@ load_string(SV *object, SV *string)
         {
             if (val && SvOK(*val) && SvIOK(*val)) {
                 yaml = INT2PTR(perl_yaml_xs_t*, SvIV(*val));
+                yaml->document = 0;
 
                 yaml_parser_initialize(&yaml->parser);
                 fprintf(stderr, "=============== load_string p: %p\n", yaml);
-                fprintf(stderr, "=============== load_string parser: %p\n", &yaml->parser);
                 yaml_parser_set_input_string(
                     &yaml->parser,
                     yaml_str,
                     yaml_len
                 );
-                node = oo_load(yaml);
+                yaml->anchors = newHV();
+                sv_2mortal((SV *)yaml->anchors);
+
+                if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+                    goto load_error;
+                if (yaml->event.type != YAML_STREAM_START_EVENT)
+                    croak("%sExpected STREAM_START_EVENT; Got: %d != %d",
+                        ERRMSG,
+                        yaml->event.type,
+                        YAML_STREAM_START_EVENT
+                     );
+
+                while (1) {
+                    yaml->document++;
+                    yaml_event_delete(&yaml->event);
+                    if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+                        goto load_error;
+                    if (yaml->event.type == YAML_STREAM_END_EVENT)
+                        break;
+                    node = oo_load_node(yaml);
+                    yaml_event_delete(&yaml->event);
+                    hv_clear(yaml->anchors);
+
+                    if (! node) break;
+
+                    if (!yaml_parser_parse(&yaml->parser, &yaml->event))
+                        goto load_error;
+                    if (yaml->event.type != YAML_DOCUMENT_END_EVENT)
+                        croak("%sExpected DOCUMENT_END_EVENT", ERRMSG);
+
+                    if (! (GIMME_V == G_ARRAY) && yaml->document > 1) {
+                    }
+                    else {
+                        multi = yaml->document;
+                        XPUSHs(sv_2mortal(node));
+                    }
+                }
+
+                if (yaml->event.type != YAML_STREAM_END_EVENT)
+                    croak("%sExpected STREAM_END_EVENT; Got: %d != %d",
+                        ERRMSG,
+                        yaml->event.type,
+                        YAML_STREAM_END_EVENT
+                     );
 
             }
         } XCPT_TRY_END
 
         XCPT_CATCH
         {
+            yaml_parser_delete(&yaml->parser);
             XCPT_RETHROW;
         }
 
-        XPUSHs(sv_2mortal(node));
-        XSRETURN(1);
+        XSRETURN(multi);
+        PUTBACK;
+
+    load_error:
+        croak("load: %s", (char *)yaml->parser.problem);
     }
 
 SV *
@@ -210,12 +258,14 @@ DESTROY(SV *object)
         HV *hash;
         SV **val;
 
-        //fprintf(stderr, "=============== DESTROY\n");
+        fprintf(stderr, "=============== DESTROY\n");
         hash = (HV*)(SvROK(object)? SvRV(object): object);
         val = hv_fetch(hash, "ptr", 3, TRUE);
         if (val && SvOK(*val) && SvIOK(*val)) {
             yaml = INT2PTR(perl_yaml_xs_t*, SvIV(*val));
+            yaml_parser_initialize(&yaml->parser);
             yaml_parser_delete(&yaml->parser);
+            yaml_emitter_initialize(&yaml->emitter);
             yaml_emitter_delete(&yaml->emitter);
             free(yaml);
         }

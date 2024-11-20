@@ -13,19 +13,28 @@ my $yaml = <<'EOM';
 - foo
 - [bar]
 - key: val
+---
+foo: bar
 EOM
 
-my @data = $xs->load_string($yaml);
+
 my @exp = (
     foo => ['bar'], { key => 'val' }
 );
-is_deeply $data[0], \@exp, 'load_string';
+my $data = $xs->load_string($yaml);
+is_deeply $data, \@exp, 'load_string scalar context';
+
+
+my @data = $xs->load_string($yaml);
+is_deeply $data[0], \@exp, 'load_string list context, first document';
+is_deeply $data[1], { foo => 'bar' }, 'load_string list context, second document';
 note __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\@data], ['data']);
+
 
 @data = $xs->load_string('foo: bar');
 is_deeply $data[0], { foo => 'bar' }, 'repeated load_string';
 
-my $data = {
+$data = {
     this => {
         is => [ object => ori => "ented" ],
     },
@@ -47,7 +56,7 @@ is $yaml, $exp, 'dump';
 
 $yaml = $xs->dump_string(23);
 note $yaml;
-my $exp = <<'EOM';
+$exp = <<'EOM';
 --- 23
 EOM
 is $yaml, $exp, 'repeated dump';
