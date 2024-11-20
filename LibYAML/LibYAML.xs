@@ -151,7 +151,9 @@ load_string(SV *object, SV *string)
                     yaml_event_delete(&yaml->event);
                     hv_clear(yaml->anchors);
 
+                    //fprintf(stderr, "=========== load_string 1\n", multi);
                     if (! node) break;
+                    //fprintf(stderr, "=========== load_string 2\n", multi);
 
                     if (!yaml_parser_parse(&yaml->parser, &yaml->event))
                         goto load_error;
@@ -163,6 +165,7 @@ load_string(SV *object, SV *string)
                     else {
                         multi = yaml->document;
                         XPUSHs(sv_2mortal(node));
+                        //fprintf(stderr, "=========== load_string 3\n", multi);
                     }
                 }
 
@@ -181,6 +184,7 @@ load_string(SV *object, SV *string)
             XCPT_RETHROW;
         }
 
+        //fprintf(stderr, "=========== load_string multi=%d\n", multi);
         XSRETURN(multi);
         PUTBACK;
 

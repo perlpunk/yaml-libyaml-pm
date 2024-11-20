@@ -1732,15 +1732,12 @@ oo_load_scalar(perl_yaml_xs_t *self)
 #endif
             return scalar;
         }
-        if (strEQ(string, "null")) {
+        if (strEQ(string, "null") || strEQ(string, "")) {
             scalar = newSV(0);
             return scalar;
         }
-        if (strEQ(string, ".inf")) {
-            NV nv = NV_INF;
-            string++;
-            length--;
-            return newSVnv(nv);
+        if (strEQ(string, ".inf") || strEQ(string, "+.INF") || strEQ(string, "+.Inf") || strEQ(string, "+.inf")) {
+            return newSVnv(NV_INF);
         }
         if (strEQ(string, ".nan")) {
             NV nv = NV_NAN;
@@ -1802,6 +1799,7 @@ oo_load_scalar(perl_yaml_xs_t *self)
             return scalar;
         }
     }
+    //fprintf(stderr, "=========== oo_load_scalar '%s'\n", string);
     scalar = newSVpvn(string, length);
     if (anchor) {
         hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);

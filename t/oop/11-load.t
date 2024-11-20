@@ -1,12 +1,103 @@
 use strict;
 use warnings;
 use Test::More;
-use YAML::XS;
-use YAML::XS;
+use YAML::XS ();
+use B;
+use Devel::Peek;
 use Data::Dumper;
 use v5.10;
+use FindBin '$Bin';
+my $schema_file = "$Bin/schema-core.yaml";
 
 my $xs = YAML::XS->new();
+
+my $core = YAML::XS::LoadFile($schema_file);
+
+my $inf = 0 + 'inf';
+my $inf_negative = 0 - 'inf';
+my $nan = 0 + 'nan';
+diag("inf: $inf -inf: $inf_negative nan: $nan");
+my $inf_broken = $inf eq '0';
+$inf_broken and diag("inf/nan seem broken, skipping those tests");
+my %check = (
+    null => sub { not defined $_[0] },
+    inf => sub {
+        my ($float) = @_;
+        return $float eq $inf;
+    },
+    'inf-neg' => sub {
+        my ($float) = @_;
+        return $float eq $inf_negative;
+    },
+    nan => sub {
+        my ($float) = @_;
+        return $float eq $nan;
+    },
+);
+
+
+my @k = sort keys %$core;
+@k = @k[0..188];
+for my $input (@k) {
+    my $test_data = $core->{ $input };
+    next if $test_data eq 'error';
+    next if $input =~ m/^!!/;
+    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$input], ['input']);
+    my ($type, $check, $dump) = @$test_data;
+    my $yaml = "---\n$input\n";
+    my $data = $xs->load_string($yaml);
+    my $flags = B::svref_2object(\$data)->FLAGS;
+    my $is_str = $flags & B::SVp_POK;
+    my $is_int = $flags & B::SVp_IOK;
+    my $is_float = $flags & B::SVp_NOK;
+    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$data], ['load']);
+#    Dump $data;
+
+    my $func;
+
+    my $label = sprintf "type %s: load(%s)", $type, $input;
+    if ($check =~ m/^([\w-]+)\(\)$/) {
+        my $func_name = $1;
+        $func = $check{ $func_name };
+        my $ok = $func->($data);
+        ok($ok, "$label - check $func_name() ok");
+    }
+    if ($type eq 'str') {
+        ok($is_str, "$label is str");
+        ok(! $is_int, "$label is not int");
+        ok(! $is_float, "$label is not float");
+
+        unless ($func) {
+            cmp_ok($data, 'eq', $data, "$label eq '$data'");
+        }
+    }
+    elsif ($type eq 'int') {
+        ok($is_int, "$label is int");
+        ok(!$is_str, "$label is not str");
+
+        unless ($func) {
+            cmp_ok($data, '==', $data, "$label == '$data'");
+        }
+    }
+    elsif ($type eq 'float' or $type eq 'inf' or $type eq 'nan') {
+        unless ($inf_broken) {
+            ok($is_float, "$label is float");
+            ok(!$is_str, "$label is not str");
+        }
+
+        unless ($func) {
+            cmp_ok(sprintf("%.2f", $data), '==', $data, "$label == '$data'");
+        }
+    }
+    elsif ($type eq 'bool' or $type eq 'null') {
+    }
+    else {
+        ok(0, "unknown type $type");
+    }
+
+}
+
+done_testing; exit;
 
 my $yaml = <<'EOM';
 - test
