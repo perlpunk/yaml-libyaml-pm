@@ -1815,9 +1815,8 @@ oo_load_scalar(perl_yaml_xs_t *self)
             if (tag && ! strEQ(tag, YAML_BOOL_TAG)) {
                 croak("%s", loader_error_msg( self, form("Invalid tag '%s' for value '%s'", tag, string)));
             }
-            return scalar;
         }
-        if (strEQ(string, "false") || strEQ(string, "FALSE") || strEQ(string, "False")) {
+        else if (strEQ(string, "false") || strEQ(string, "FALSE") || strEQ(string, "False")) {
 #ifdef PERL_HAVE_BOOLEANS
             scalar = newSVsv(&PL_sv_no);
 #else
@@ -1826,16 +1825,14 @@ oo_load_scalar(perl_yaml_xs_t *self)
             if (tag && ! strEQ(tag, YAML_BOOL_TAG)) {
                 croak("%s", loader_error_msg( self, form("Invalid tag '%s' for value '%s'", tag, string)));
             }
-            return scalar;
         }
-        if (strEQ(string, "null") || strEQ(string, "NULL") || strEQ(string, "Null") || strEQ(string, "~") || strEQ(string, "")) {
+        else if (strEQ(string, "null") || strEQ(string, "NULL") || strEQ(string, "Null") || strEQ(string, "~") || strEQ(string, "")) {
             scalar = newSV(0);
             if (tag && ! strEQ(tag, YAML_NULL_TAG)) {
                 croak("%s", loader_error_msg( self, form("Invalid tag '%s' for value '%s'", tag, string)));
             }
-            return scalar;
         }
-        if (
+        else if (
             strEQ(string, ".INF") || strEQ(string, ".Inf") || strEQ(string, ".inf")
             || strEQ(string, "+.INF") || strEQ(string, "+.Inf") || strEQ(string, "+.inf")
             || strEQ(string, "-.INF") || strEQ(string, "-.Inf") || strEQ(string, "-.inf")
@@ -1844,13 +1841,13 @@ oo_load_scalar(perl_yaml_xs_t *self)
                 croak("%s", loader_error_msg( self, form("Invalid tag '%s' for value '%s'", tag, string)));
             }
             if (string[0] == 45) {
-                return newSVnv(-NV_INF);
+                scalar = newSVnv(-NV_INF);
             }
             else {
-                return newSVnv(NV_INF);
+                scalar = newSVnv(NV_INF);
             }
         }
-        if (
+        else if (
             strEQ(string, ".NAN") || strEQ(string, ".NaN") || strEQ(string, ".nan")
             ) {
             NV nv = NV_NAN;
@@ -1859,9 +1856,9 @@ oo_load_scalar(perl_yaml_xs_t *self)
             if (tag && ! strEQ(tag, YAML_FLOAT_TAG)) {
                 croak("%s", loader_error_msg( self, form("Invalid tag '%s' for value '%s'", tag, string)));
             }
-            return newSVnv(nv);
+            scalar = newSVnv(nv);
         }
-        if (
+        else if (
             string[0] == 43 || string[0] == 45 || string[0] == 46
             || (string[0] >= 48 && string[0] <= 57)) {
             dSP;
@@ -1902,14 +1899,13 @@ oo_load_scalar(perl_yaml_xs_t *self)
                         SvIV_please(scalar);
                         SvNOK_only(scalar);
                     }
-                    return scalar;
                 }
                 if (is_num == 3) {
 //                    fprintf(stderr, "===== oct (%s): %d\n", string, is_num);
                     string += 2;
                     length -= 2;
                     int num = grok_oct(string, &length, &flags, &uv);
-                    return newSViv((int) num);
+                    scalar = newSViv((int) num);
                 }
                 if (is_num == 4) {
 //                    fprintf(stderr, "===== hex (%s): %d\n", string, is_num);
@@ -1917,17 +1913,38 @@ oo_load_scalar(perl_yaml_xs_t *self)
                     length -= 2;
                     int num = grok_hex(string, &length, &flags, &uv);
 //                    fprintf(stderr, "===== hex (%s): %u\n", string, (unsigned int) num);
-                    return newSViv((int) num);
+                    scalar = newSViv((int) num);
+                }
+                if (anchor) {
+                    hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
                 }
                 return scalar;
             }
+            else {
+                scalar = newSVpvn(string, length);
+                if (tag && ! strEQ(tag, YAML_STR_TAG)) {
+                    croak("%s", loader_error_msg( self, form("Invalid tag '%s' for value '%s'", tag, string)));
+                }
+            }
+        }
+        else {
+            scalar = newSVpvn(string, length);
+            if (tag && ! strEQ(tag, YAML_STR_TAG)) {
+                croak("%s", loader_error_msg( self, form("Invalid tag '%s' for value '%s'", tag, string)));
+            }
+        }
+        if (anchor) {
+            hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
+        }
+        return scalar;
+    }
+    else {
+        scalar = newSVpvn(string, length);
+        if (tag && ! strEQ(tag, YAML_STR_TAG)) {
+            croak("%s", loader_error_msg( self, form("Invalid tag '%s' for value '%s'", tag, string)));
         }
     }
-    if (tag && ! strEQ(tag, YAML_STR_TAG)) {
-        croak("%s", loader_error_msg( self, form("Invalid tag '%s' for value '%s'", tag, string)));
-    }
     //fprintf(stderr, "=========== oo_load_scalar '%s'\n", string);
-    scalar = newSVpvn(string, length);
     if (anchor) {
         hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
     }
