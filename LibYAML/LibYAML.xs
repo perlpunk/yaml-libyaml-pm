@@ -51,6 +51,7 @@ new(char *class_name, ...)
         SV *object;
         int i;
         int indent;
+        int utf8 = 0;
 
         XCPT_TRY_START
         {
@@ -73,6 +74,13 @@ new(char *class_name, ...)
                             //fprintf(stderr, "==== %d: %s=%d\n", i, key, indent);
                             hv_store(hash, "indent", 6, indent_sv, 0);
                             yaml->indent = indent;
+                        }
+                        else if (strEQ(key, "utf8")) {
+                            utf8 = SvIV(ST(i+1));
+                            SV *utf8_sv = newSViv(utf8);
+                            //fprintf(stderr, "==== %d: %s=%d\n", i, key, utf8);
+                            hv_store(hash, "utf8", 4, utf8_sv, 0);
+                            yaml->utf8 = utf8;
                         }
                     }
                 }
@@ -217,6 +225,7 @@ dump_string(SV *object, ...)
                 yaml_emitter_initialize(&yaml->emitter);
                 yaml_emitter_set_unicode(&yaml->emitter, 1);
                 yaml_emitter_set_indent(&yaml->emitter, yaml->indent);
+                //fprintf(stderr, "========== dump_string utf8=%d\n", yaml->utf8);
                 //fprintf(stderr, "=============== dump_string p: %p\n", yaml);
                 //fprintf(stderr, "=============== dump_string parser: %p\n", &yaml->parser);
 
@@ -243,7 +252,9 @@ dump_string(SV *object, ...)
                     croak("ERROR: %s", yaml->emitter.problem);
                 }
                 if (string) {
-                    SvUTF8_off(string);
+                    if (! yaml->utf8) {
+                        SvUTF8_on(string);
+                    }
                 }
 
             }

@@ -1457,9 +1457,9 @@ oo_dump_scalar(perl_yaml_xs_t *self, SV *node)
     plain_implicit = quoted_implicit = 1;
     int is_num = 0;
     STRLEN length;
+    SV *node_clone;
 
-    SV *node_clone = sv_mortalcopy(node);
-
+    SvGETMAGIC(node);
     if (!SvOK(node)) {
         string = "null";
         string_len = 4;
@@ -1467,12 +1467,20 @@ oo_dump_scalar(perl_yaml_xs_t *self, SV *node)
     }
     else if (SvNOK(node)) {
         NV val = SvNV(node);
-        if (node == &PL_sv_yes) {
+        if (node == &PL_sv_yes
+#ifdef PERL_HAVE_BOOLEANS
+        || (SvIsBOOL(node) && SvTRUE(node))
+#endif
+        ) {
             string = "true";
             string_len = 4;
             style = YAML_PLAIN_SCALAR_STYLE;
         }
-        else if (node == &PL_sv_no) {
+        else if (node == &PL_sv_no
+#ifdef PERL_HAVE_BOOLEANS
+        || (SvIsBOOL(node) && !SvTRUE(node))
+#endif
+        ) {
             string = "false";
             string_len = 5;
             style = YAML_PLAIN_SCALAR_STYLE;
@@ -1516,6 +1524,7 @@ oo_dump_scalar(perl_yaml_xs_t *self, SV *node)
         string_len = strlen(string);
     }
     else {
+        node_clone = sv_mortalcopy(node);
         string = SvPV_nomg(node_clone, string_len);
         if (
             strEQ(string, "true") || strEQ(string, "TRUE") || strEQ(string, "True")
@@ -1946,6 +1955,7 @@ oo_load_scalar(perl_yaml_xs_t *self)
         if (anchor) {
             hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
         }
+        (void)sv_utf8_decode(scalar);
         return scalar;
     }
     else {
@@ -1958,6 +1968,7 @@ oo_load_scalar(perl_yaml_xs_t *self)
     if (anchor) {
         hv_store(self->anchors, anchor, strlen(anchor), SvREFCNT_inc(scalar), 0);
     }
+    (void)sv_utf8_decode(scalar);
     return scalar;
 }
 

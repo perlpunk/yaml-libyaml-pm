@@ -54,6 +54,7 @@ typedef struct {
     long anchor;
     HV *anchors;
     int indent;
+    int utf8;
     int document;
 } perl_yaml_xs_t;
 
