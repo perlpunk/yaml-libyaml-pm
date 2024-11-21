@@ -52,13 +52,15 @@ for my $input (@k) {
 #    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$input], ['input']);
     my ($type, $check, $dump) = @$test_data;
     my $yaml = "---\n$input\n";
-    my $data = $xs->load_string($yaml);
+    my $data = undef;
+    $data = $xs->load_string($yaml);
+    my $data_copy = $data; # avoid stringifying original data
+#    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$data_copy], ['data_copy']);
+#    Dump $data_copy;
     my $flags = B::svref_2object(\$data)->FLAGS;
     my $is_str = $flags & B::SVp_POK;
     my $is_int = $flags & B::SVp_IOK;
     my $is_float = $flags & B::SVp_NOK;
-#    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$data], ['data']);
-#    Dump $data;
 
     my $func;
 
@@ -102,6 +104,15 @@ for my $input (@k) {
         ok(0, "unknown type $type");
     }
 
+    unless ($inf_broken) {
+        my $yaml_dump = $xs->dump_string($data);
+        $yaml_dump =~ s/---(\n| )//;
+        $yaml_dump =~ s/\n\z//;
+        if ($input !~ m/^(FALSE|False|false|TRUE|True|true)$/) {
+            # TODO booleans
+            cmp_ok($yaml_dump, 'eq', $dump, "$label-dump as expected");
+        }
+    }
 }
 
 done_testing; exit;

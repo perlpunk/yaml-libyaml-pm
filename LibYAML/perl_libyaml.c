@@ -1448,6 +1448,7 @@ oo_dump_array(perl_yaml_xs_t *self, SV *node, yaml_char_t *anchor)
 void
 oo_dump_scalar(perl_yaml_xs_t *self, SV *node)
 {
+    //fprintf(stderr, "======== oo_dump_scalar\n");
     yaml_event_t event_scalar;
     char *string;
     STRLEN string_len;
@@ -1456,7 +1457,50 @@ oo_dump_scalar(perl_yaml_xs_t *self, SV *node)
     plain_implicit = quoted_implicit = 1;
 
     SV *node_clone = sv_mortalcopy(node);
-    string = SvPV_nomg(node_clone, string_len);
+
+    if (!SvOK(node)) {
+        string = "null";
+        string_len = 4;
+        style = YAML_PLAIN_SCALAR_STYLE;
+    }
+    else if (SvNOK(node)) {
+        NV val = SvNV(node);
+        if (isnan(val)) {
+            string = ".nan";
+            string_len = 4;
+            style = YAML_PLAIN_SCALAR_STYLE;
+        }
+        else if (isinf(val)) {
+            if (val == -NV_INF) {
+                string = "-.inf";
+                string_len = 5;
+            }
+            else {
+                string = ".inf";
+                string_len = 4;
+            }
+            style = YAML_PLAIN_SCALAR_STYLE;
+        }
+        else {
+            SV *str = SvPV_nolen(node);
+            string = (char *)str;
+            int dot = 0;
+            for (int i=0; i < strlen(string); i++) {
+                if (string[i] == 46) {
+                    dot = 1;
+                    break;
+                }
+            }
+            if (! dot) {
+                char *add = ".0";
+                strcat(string, add);
+            }
+            string_len = strlen(string);
+        }
+    }
+    else {
+        string = SvPV_nomg(node_clone, string_len);
+    }
 
     if (! yaml_scalar_event_initialize(
         &event_scalar,
