@@ -5,7 +5,6 @@ use YAML::XS ();
 use B;
 use Devel::Peek;
 use Data::Dumper;
-use v5.10;
 use FindBin '$Bin';
 my $schema_file = "$Bin/schema-core.yaml";
 
@@ -33,16 +32,24 @@ my %check = (
         my ($float) = @_;
         return $float eq $nan;
     },
+    true => sub {
+        my ($bool) = @_;
+        return $bool eq 1;
+    },
+    false => sub {
+        my ($bool) = @_;
+        return $bool eq '';
+    },
 );
 
 
 my @k = sort keys %$core;
-@k = @k[0..188];
+#@k = @k[0..280];
 for my $input (@k) {
     my $test_data = $core->{ $input };
     next if $test_data eq 'error';
     next if $input =~ m/^!!/;
-    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$input], ['input']);
+#    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$input], ['input']);
     my ($type, $check, $dump) = @$test_data;
     my $yaml = "---\n$input\n";
     my $data = $xs->load_string($yaml);
@@ -50,7 +57,7 @@ for my $input (@k) {
     my $is_str = $flags & B::SVp_POK;
     my $is_int = $flags & B::SVp_IOK;
     my $is_float = $flags & B::SVp_NOK;
-    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$data], ['load']);
+#    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$data], ['data']);
 #    Dump $data;
 
     my $func;

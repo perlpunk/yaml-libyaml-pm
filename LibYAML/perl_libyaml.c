@@ -1716,7 +1716,7 @@ oo_load_scalar(perl_yaml_xs_t *self)
     UV *uv;
 
     if (style == YAML_PLAIN_SCALAR_STYLE) {
-        if (strEQ(string, "true")) {
+        if (strEQ(string, "true") || strEQ(string, "TRUE") || strEQ(string, "True")) {
 #ifdef PERL_HAVE_BOOLEANS
             scalar = newSVsv(&PL_sv_yes);
 #else
@@ -1724,7 +1724,7 @@ oo_load_scalar(perl_yaml_xs_t *self)
 #endif
             return scalar;
         }
-        if (strEQ(string, "false")) {
+        if (strEQ(string, "false") || strEQ(string, "FALSE") || strEQ(string, "False")) {
 #ifdef PERL_HAVE_BOOLEANS
             scalar = newSVsv(&PL_sv_no);
 #else
@@ -1732,20 +1732,33 @@ oo_load_scalar(perl_yaml_xs_t *self)
 #endif
             return scalar;
         }
-        if (strEQ(string, "null") || strEQ(string, "")) {
+        if (strEQ(string, "null") || strEQ(string, "NULL") || strEQ(string, "Null") || strEQ(string, "~") || strEQ(string, "")) {
             scalar = newSV(0);
             return scalar;
         }
-        if (strEQ(string, ".inf") || strEQ(string, "+.INF") || strEQ(string, "+.Inf") || strEQ(string, "+.inf")) {
-            return newSVnv(NV_INF);
+        if (
+            strEQ(string, ".INF") || strEQ(string, ".Inf") || strEQ(string, ".inf")
+            || strEQ(string, "+.INF") || strEQ(string, "+.Inf") || strEQ(string, "+.inf")
+            || strEQ(string, "-.INF") || strEQ(string, "-.Inf") || strEQ(string, "-.inf")
+            ) {
+            if (string[0] == 45) {
+                return newSVnv(-NV_INF);
+            }
+            else {
+                return newSVnv(NV_INF);
+            }
         }
-        if (strEQ(string, ".nan")) {
+        if (
+            strEQ(string, ".NAN") || strEQ(string, ".NaN") || strEQ(string, ".nan")
+            ) {
             NV nv = NV_NAN;
             string++;
             length--;
             return newSVnv(nv);
         }
-        if (string[0] == 45 || string[0] == 46 || (string[0] >= 48 && string[0] <= 57)) {
+        if (
+            string[0] == 43 || string[0] == 45 || string[0] == 46
+            || (string[0] >= 48 && string[0] <= 57)) {
             dSP;
             scalar = newSVpvn(string, length);
             ENTER;
