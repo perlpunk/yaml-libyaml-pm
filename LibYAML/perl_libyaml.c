@@ -1455,6 +1455,8 @@ oo_dump_scalar(perl_yaml_xs_t *self, SV *node)
     int plain_implicit, quoted_implicit;
     yaml_scalar_style_t style = YAML_PLAIN_SCALAR_STYLE;
     plain_implicit = quoted_implicit = 1;
+    int is_num = 0;
+    STRLEN length;
 
     SV *node_clone = sv_mortalcopy(node);
 
@@ -1498,9 +1500,47 @@ oo_dump_scalar(perl_yaml_xs_t *self, SV *node)
             string_len = strlen(string);
         }
     }
+    else if (SvIOK(node)) {
+        SV *str = SvPV_nolen(node);
+        string = (char *)str;
+        string_len = strlen(string);
+    }
     else {
         string = SvPV_nomg(node_clone, string_len);
-    }
+        if (
+            strEQ(string, "true") || strEQ(string, "TRUE") || strEQ(string, "True")
+            || strEQ(string, "false") || strEQ(string, "FALSE") || strEQ(string, "False")
+            || strEQ(string, "null") || strEQ(string, "NULL") || strEQ(string, "Null") || strEQ(string, "~") || strEQ(string, "")
+            || strEQ(string, ".INF") || strEQ(string, ".Inf") || strEQ(string, ".inf")
+            || strEQ(string, "+.INF") || strEQ(string, "+.Inf") || strEQ(string, "+.inf")
+            || strEQ(string, "-.INF") || strEQ(string, "-.Inf") || strEQ(string, "-.inf")
+            || strEQ(string, ".NAN") || strEQ(string, ".NaN") || strEQ(string, ".nan")
+            ) {
+                style = YAML_SINGLE_QUOTED_SCALAR_STYLE;
+            }
+            else if (
+                string[0] == 43 || string[0] == 45 || string[0] == 46
+                || (string[0] >= 48 && string[0] <= 57)) {
+                dSP;
+                length = strlen(string);
+                SV *scalar = newSVpvn(string, length);
+                ENTER;
+                SAVETMPS;
+                PUSHMARK(sp);
+                XPUSHs(scalar);
+                PUTBACK;
+                is_num = call_pv("YAML::XS::__is_nummber", G_SCALAR);
+                SPAGAIN;
+                is_num = (POPi);
+
+                PUTBACK;
+                FREETMPS;
+                LEAVE;
+                if (is_num) {
+                    style = YAML_SINGLE_QUOTED_SCALAR_STYLE;
+                }
+            }
+}
 
     if (! yaml_scalar_event_initialize(
         &event_scalar,
@@ -1754,10 +1794,16 @@ oo_load_scalar(perl_yaml_xs_t *self)
     //fprintf(stderr, "========= oo_load_scalar '%s'\n", string);
     yaml_scalar_style_t style = self->event.data.scalar.style;
     char *anchor = (char *)self->event.data.scalar.anchor;
+    char *tag = (char *)self->event.data.scalar.tag;
     STRLEN length = (STRLEN)self->event.data.scalar.length;
-    int is_int = 0;
+    int is_num = 0;
     I32 flags = 0;
     UV *uv;
+    if (tag) {
+        if (strEQ(tag, YAML_STR_TAG)) {
+            style = YAML_SINGLE_QUOTED_SCALAR_STYLE;
+        }
+    }
 
     if (style == YAML_PLAIN_SCALAR_STYLE) {
         if (strEQ(string, "true") || strEQ(string, "TRUE") || strEQ(string, "True")) {
@@ -1810,20 +1856,20 @@ oo_load_scalar(perl_yaml_xs_t *self)
             PUSHMARK(sp);
             XPUSHs(scalar);
             PUTBACK;
-            is_int = call_pv("YAML::XS::__is_nummber", G_SCALAR);
+            is_num = call_pv("YAML::XS::__is_nummber", G_SCALAR);
             SPAGAIN;
-            is_int = (POPi);
+            is_num = (POPi);
 
             PUTBACK;
             FREETMPS;
             LEAVE;
             //fprintf(stderr, "================ oo_load_scalar %s\n", string);
-            if (is_int) {
+            if (is_num) {
                 int neg = 0;
-                if (is_int == 1 || is_int == 2) {
+                if (is_num == 1 || is_num == 2) {
                     if (string[0] == 45) neg = 1;
                     scalar = newSVpvn(string, length);
-                    if (is_int == 1){
+                    if (is_num == 1){
                         SvIV_please(scalar);
                         SvIOK_only(scalar);
                     }
@@ -1833,15 +1879,15 @@ oo_load_scalar(perl_yaml_xs_t *self)
                     }
                     return scalar;
                 }
-                if (is_int == 3) {
-//                    fprintf(stderr, "===== oct (%s): %d\n", string, is_int);
+                if (is_num == 3) {
+//                    fprintf(stderr, "===== oct (%s): %d\n", string, is_num);
                     string += 2;
                     length -= 2;
                     int num = grok_oct(string, &length, &flags, &uv);
                     return newSViv((int) num);
                 }
-                if (is_int == 4) {
-//                    fprintf(stderr, "===== hex (%s): %d\n", string, is_int);
+                if (is_num == 4) {
+//                    fprintf(stderr, "===== hex (%s): %d\n", string, is_num);
                     string += 2;
                     length -= 2;
                     int num = grok_hex(string, &length, &flags, &uv);

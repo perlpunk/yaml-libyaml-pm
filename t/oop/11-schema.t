@@ -48,7 +48,7 @@ my @k = sort keys %$core;
 for my $input (@k) {
     my $test_data = $core->{ $input };
     next if $test_data eq 'error';
-    next if $input =~ m/^!!/;
+    next if $input =~ m/^!!(float|int|bool)/;
 #    warn __PACKAGE__.':'.__LINE__.$".Data::Dumper->Dump([\$input], ['input']);
     my ($type, $check, $dump) = @$test_data;
     my $yaml = "---\n$input\n";
