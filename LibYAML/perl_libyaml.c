@@ -1810,7 +1810,7 @@ oo_load_scalar(perl_yaml_xs_t *self)
             PUSHMARK(sp);
             XPUSHs(scalar);
             PUTBACK;
-            is_int = call_pv("YAML::XS::__is_integer", G_SCALAR);
+            is_int = call_pv("YAML::XS::__is_nummber", G_SCALAR);
             SPAGAIN;
             is_int = (POPi);
 
