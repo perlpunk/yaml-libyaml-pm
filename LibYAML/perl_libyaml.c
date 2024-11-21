@@ -1467,7 +1467,17 @@ oo_dump_scalar(perl_yaml_xs_t *self, SV *node)
     }
     else if (SvNOK(node)) {
         NV val = SvNV(node);
-        if (isnan(val)) {
+        if (node == &PL_sv_yes) {
+            string = "true";
+            string_len = 4;
+            style = YAML_PLAIN_SCALAR_STYLE;
+        }
+        else if (node == &PL_sv_no) {
+            string = "false";
+            string_len = 5;
+            style = YAML_PLAIN_SCALAR_STYLE;
+        }
+        else if (isnan(val)) {
             string = ".nan";
             string_len = 4;
             style = YAML_PLAIN_SCALAR_STYLE;

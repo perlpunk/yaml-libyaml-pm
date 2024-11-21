@@ -17,16 +17,16 @@ my $yaml = <<'EOM';
 - *MAP
 EOM
 
-my @data = $xs->load_string($yaml);
+my $data = $xs->load_string($yaml);
 my @exp = (
     (foo => ['bar'], { key => 'val' }) x 2
 );
-is_deeply $data[0], \@exp, 'load_string';
-is $data[0]->[0], $data[0]->[3], 'scalar alias loaded correctly';
-is $data[0]->[1], $data[0]->[4], 'sequence alias loaded correctly';
-is $data[0]->[2], $data[0]->[5], 'mapping alias loaded correctly';
+is_deeply $data, \@exp, 'load_string';
+is $data->[0], $data->[3], 'scalar alias loaded correctly';
+is $data->[1], $data->[4], 'sequence alias loaded correctly';
+is $data->[2], $data->[5], 'mapping alias loaded correctly';
 
-$yaml = $xs->dump_string($data[0]);
+$yaml = $xs->dump_string($data);
 
 my $exp = <<'EOM';
 ---
@@ -51,5 +51,44 @@ $exp = <<'EOM';
 - *1
 EOM
 is $yaml, $exp, 'circular refs are dumped correctly';
+
+$yaml = <<'EOM';
+- &NULL null
+- &TRUE true
+- &FALSE FALSE
+- &INT 23
+- &FLOAT 3.14
+- &INF -.inf
+- &NAN .nan
+
+- *NULL
+- *TRUE
+- *FALSE
+- *INT
+- *FLOAT
+- *INF
+- *NAN
+EOM
+
+$data = $xs->load_string($yaml);
+$yaml = $xs->dump_string($data);
+$exp = <<'EOM';
+---
+- null
+- true
+- false
+- 23
+- 3.14
+- -.inf
+- .nan
+- null
+- true
+- false
+- 23
+- 3.14
+- -.inf
+- .nan
+EOM
+is $yaml, $exp, 'aliases for different types';
 
 done_testing;
