@@ -71,14 +71,12 @@ new(char *class_name, ...)
                         if (strEQ(key, "indent")) {
                             indent = SvIV(ST(i+1));
                             SV *indent_sv = newSViv(indent);
-                            //fprintf(stderr, "==== %d: %s=%d\n", i, key, indent);
                             hv_store(hash, "indent", 6, indent_sv, 0);
                             yaml->indent = indent;
                         }
                         else if (strEQ(key, "utf8")) {
                             utf8 = SvIV(ST(i+1));
                             SV *utf8_sv = newSViv(utf8);
-                            //fprintf(stderr, "==== %d: %s=%d\n", i, key, utf8);
                             hv_store(hash, "utf8", 4, utf8_sv, 0);
                             yaml->utf8 = utf8;
                         }
@@ -86,8 +84,6 @@ new(char *class_name, ...)
                 }
             }
 
-            //fprintf(stderr, "=============== new p: %p\n", yaml);
-            //fprintf(stderr, "=============== new parser: %p\n", &yaml->parser);
             point_sv = newSViv(PTR2IV(yaml));
             hv_store(hash, "ptr", 3, point_sv, 0);
 
@@ -97,8 +93,6 @@ new(char *class_name, ...)
 
         XCPT_CATCH
         {
-            //yaml_parser_delete(&yaml->parser);
-            //yaml_parser_delete(&yaml->emitter);
             XCPT_RETHROW;
         }
         XPUSHs(object);
@@ -122,7 +116,6 @@ load_string(SV *object, SV *string)
         val = hv_fetch(hash, "ptr", 3, TRUE);
         yaml_str = (const unsigned char *)SvPV_const(string, yaml_len);
 
-        //fprintf(stderr, "=============== load_string '%s'\n", yaml_str);
         XCPT_TRY_START
         {
             if (val && SvOK(*val) && SvIOK(*val)) {
@@ -130,7 +123,6 @@ load_string(SV *object, SV *string)
                 yaml->document = 0;
 
                 yaml_parser_initialize(&yaml->parser);
-                //fprintf(stderr, "=============== load_string p: %p\n", yaml);
                 yaml_parser_set_input_string(
                     &yaml->parser,
                     yaml_str,
@@ -159,9 +151,7 @@ load_string(SV *object, SV *string)
                     yaml_event_delete(&yaml->event);
                     hv_clear(yaml->anchors);
 
-                    //fprintf(stderr, "=========== load_string 1\n", multi);
                     if (! node) break;
-                    //fprintf(stderr, "=========== load_string 2\n", multi);
 
                     if (!yaml_parser_parse(&yaml->parser, &yaml->event))
                         goto load_error;
@@ -173,7 +163,6 @@ load_string(SV *object, SV *string)
                     else {
                         multi = yaml->document;
                         XPUSHs(sv_2mortal(node));
-                        //fprintf(stderr, "=========== load_string 3\n", multi);
                     }
                 }
 
@@ -192,7 +181,6 @@ load_string(SV *object, SV *string)
             XCPT_RETHROW;
         }
 
-        //fprintf(stderr, "=========== load_string multi=%d\n", multi);
         XSRETURN(multi);
         PUTBACK;
 
@@ -213,7 +201,6 @@ dump_string(SV *object, ...)
         SV *string = newSVpvn("", 0);
         int i;
 
-        //fprintf(stderr, "=============== dump_string\n");
         hash = (HV*)(SvROK(object)? SvRV(object): object);
         val = hv_fetch(hash, "ptr", 3, TRUE);
 
@@ -225,9 +212,6 @@ dump_string(SV *object, ...)
                 yaml_emitter_initialize(&yaml->emitter);
                 yaml_emitter_set_unicode(&yaml->emitter, 1);
                 yaml_emitter_set_indent(&yaml->emitter, yaml->indent);
-                //fprintf(stderr, "========== dump_string utf8=%d\n", yaml->utf8);
-                //fprintf(stderr, "=============== dump_string p: %p\n", yaml);
-                //fprintf(stderr, "=============== dump_string parser: %p\n", &yaml->parser);
 
                 yaml_emitter_set_output(&yaml->emitter, &append_output, (void *) string);
 
@@ -256,7 +240,6 @@ dump_string(SV *object, ...)
                         SvUTF8_on(string);
                     }
                 }
-
             }
         } XCPT_TRY_END
 
@@ -278,7 +261,6 @@ DESTROY(SV *object)
         HV *hash;
         SV **val;
 
-        //fprintf(stderr, "=============== DESTROY\n");
         hash = (HV*)(SvROK(object)? SvRV(object): object);
         val = hv_fetch(hash, "ptr", 3, TRUE);
         if (val && SvOK(*val) && SvIOK(*val)) {
