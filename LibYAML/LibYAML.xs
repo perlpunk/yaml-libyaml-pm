@@ -57,8 +57,6 @@ new(char *class_name, ...)
         {
             yaml = (perl_yaml_xs_t*) malloc(sizeof(perl_yaml_xs_t));
             yaml->indent = 2;
-            yaml_parser_initialize(&yaml->parser);
-            yaml_emitter_initialize(&yaml->emitter);
             hash = newHV();
 
             if (items > 1) {
@@ -111,6 +109,7 @@ load_string(SV *object, SV *string)
         const unsigned char *yaml_str;
         SV *node;
         int multi = 0;
+        const char *problem;
 
         hash = (HV*)(SvROK(object)? SvRV(object): object);
         val = hv_fetch(hash, "ptr", 3, TRUE);
@@ -174,18 +173,23 @@ load_string(SV *object, SV *string)
                      );
 
             }
+            yaml_parser_delete(&yaml->parser);
         } XCPT_TRY_END
 
         XCPT_CATCH
         {
             XCPT_RETHROW;
+            yaml_parser_delete(&yaml->parser);
         }
 
         XSRETURN(multi);
         PUTBACK;
 
     load_error:
-        croak("load: %s", (char *)yaml->parser.problem);
+        problem = (char *)yaml->parser.problem;
+        yaml_event_delete(&yaml->event);
+        yaml_parser_delete(&yaml->parser);
+        croak("load: %s", problem);
     }
 
 SV *
@@ -241,11 +245,13 @@ dump_string(SV *object, ...)
                     }
                 }
             }
+            yaml_emitter_delete(&yaml->emitter);
         } XCPT_TRY_END
 
         XCPT_CATCH
         {
             XCPT_RETHROW;
+            yaml_emitter_delete(&yaml->emitter);
         }
 
         XPUSHs(string);
@@ -265,8 +271,6 @@ DESTROY(SV *object)
         val = hv_fetch(hash, "ptr", 3, TRUE);
         if (val && SvOK(*val) && SvIOK(*val)) {
             yaml = INT2PTR(perl_yaml_xs_t*, SvIV(*val));
-            yaml_parser_delete(&yaml->parser);
-            yaml_emitter_delete(&yaml->emitter);
             free(yaml);
         }
 
