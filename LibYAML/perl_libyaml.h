@@ -146,6 +146,8 @@ int
 append_output(void *, unsigned char *, size_t size);
 
 
+void
+oo_load_stream(perl_yaml_xs_t *);
 SV *
 oo_load_node(perl_yaml_xs_t *);
 SV *

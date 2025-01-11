@@ -97,7 +97,7 @@ new(char *class_name, ...)
         XSRETURN(1);
     }
 
-SV *
+void
 load_string(SV *object, SV *string)
     PPCODE:
     {
@@ -107,73 +107,28 @@ load_string(SV *object, SV *string)
         SV **val;
         STRLEN yaml_len;
         const unsigned char *yaml_str;
-        SV *node;
-        int multi = 0;
         const char *problem;
 
         hash = (HV*)(SvROK(object)? SvRV(object): object);
         val = hv_fetch(hash, "ptr", 3, TRUE);
-        yaml_str = (const unsigned char *)SvPV_const(string, yaml_len);
 
+        if (!val || !SvOK(*val) || !SvIOK(*val)) {
+            PUTBACK;
+            return;
+        }
+
+        yaml_str = (const unsigned char *)SvPV_const(string, yaml_len);
+        yaml = INT2PTR(perl_yaml_xs_t*, SvIV(*val));
+        yaml_parser_initialize(&yaml->parser);
+        yaml_parser_set_input_string(
+            &yaml->parser,
+            yaml_str,
+            yaml_len
+        );
+        PUSHMARK(sp);
         XCPT_TRY_START
         {
-            if (val && SvOK(*val) && SvIOK(*val)) {
-                yaml = INT2PTR(perl_yaml_xs_t*, SvIV(*val));
-                yaml->document = 0;
-
-                yaml_parser_initialize(&yaml->parser);
-                yaml_parser_set_input_string(
-                    &yaml->parser,
-                    yaml_str,
-                    yaml_len
-                );
-                yaml->anchors = newHV();
-                sv_2mortal((SV *)yaml->anchors);
-
-                if (!yaml_parser_parse(&yaml->parser, &yaml->event))
-                    goto load_error;
-                if (yaml->event.type != YAML_STREAM_START_EVENT)
-                    croak("%sExpected STREAM_START_EVENT; Got: %d != %d",
-                        ERRMSG,
-                        yaml->event.type,
-                        YAML_STREAM_START_EVENT
-                     );
-
-                while (1) {
-                    yaml->document++;
-                    yaml_event_delete(&yaml->event);
-                    if (!yaml_parser_parse(&yaml->parser, &yaml->event))
-                        goto load_error;
-                    if (yaml->event.type == YAML_STREAM_END_EVENT)
-                        break;
-                    node = oo_load_node(yaml);
-                    yaml_event_delete(&yaml->event);
-                    hv_clear(yaml->anchors);
-
-                    if (! node) break;
-
-                    if (!yaml_parser_parse(&yaml->parser, &yaml->event))
-                        goto load_error;
-                    if (yaml->event.type != YAML_DOCUMENT_END_EVENT)
-                        croak("%sExpected DOCUMENT_END_EVENT", ERRMSG);
-
-                    if (! (GIMME_V == G_ARRAY) && yaml->document > 1) {
-                    }
-                    else {
-                        multi = yaml->document;
-                        XPUSHs(sv_2mortal(node));
-                    }
-                }
-
-                if (yaml->event.type != YAML_STREAM_END_EVENT)
-                    croak("%sExpected STREAM_END_EVENT; Got: %d != %d",
-                        ERRMSG,
-                        yaml->event.type,
-                        YAML_STREAM_END_EVENT
-                     );
-
-            }
-            yaml_parser_delete(&yaml->parser);
+            oo_load_stream(yaml);
         } XCPT_TRY_END
 
         XCPT_CATCH
@@ -181,15 +136,8 @@ load_string(SV *object, SV *string)
             yaml_parser_delete(&yaml->parser);
             XCPT_RETHROW;
         }
-
-        XSRETURN(multi);
-        PUTBACK;
-
-    load_error:
-        problem = (char *)yaml->parser.problem;
-        yaml_event_delete(&yaml->event);
         yaml_parser_delete(&yaml->parser);
-        croak("load: %s", problem);
+        return;
     }
 
 SV *

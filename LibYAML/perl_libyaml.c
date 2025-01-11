@@ -1330,6 +1330,74 @@ void xxx_local_patches() {
     Object Oriented Interface
 */
 
+void
+oo_load_stream(perl_yaml_xs_t *self)
+{
+    dXCPT;
+
+    dXSARGS;
+    SV* return_sv = NULL;
+    SV *node;
+    int multi = 0;
+
+    //fprintf(stderr, "============ oo_load_stream\n");
+    sp = mark;
+
+    self->document = 0;
+
+    self->anchors = newHV();
+    sv_2mortal((SV *)self->anchors);
+
+    if (!yaml_parser_parse(&self->parser, &self->event))
+        goto load_error;
+    if (self->event.type != YAML_STREAM_START_EVENT)
+        croak("%sExpected STREAM_START_EVENT; Got: %d != %d",
+            ERRMSG,
+            self->event.type,
+            YAML_STREAM_START_EVENT
+         );
+
+    while (1) {
+        self->document++;
+        yaml_event_delete(&self->event);
+        if (!yaml_parser_parse(&self->parser, &self->event))
+            goto load_error;
+        if (self->event.type == YAML_STREAM_END_EVENT)
+            break;
+        node = oo_load_node(self);
+        yaml_event_delete(&self->event);
+        hv_clear(self->anchors);
+
+        if (! node) break;
+
+        if (!yaml_parser_parse(&self->parser, &self->event))
+            goto load_error;
+        if (self->event.type != YAML_DOCUMENT_END_EVENT)
+            croak("%sExpected DOCUMENT_END_EVENT", ERRMSG);
+
+        if (! (GIMME_V == G_ARRAY) && self->document > 1) {
+        }
+        else {
+            multi = self->document;
+            XPUSHs(sv_2mortal(node));
+        }
+    }
+
+    if (self->event.type != YAML_STREAM_END_EVENT)
+        croak("%sExpected STREAM_END_EVENT; Got: %d != %d",
+            ERRMSG,
+            self->event.type,
+            YAML_STREAM_END_EVENT
+         );
+
+    PUTBACK;
+    return;
+
+load_error:
+    yaml_event_delete(&self->event);
+    croak("load: %s", (char *)self->parser.problem);
+}
+
 SV *
 oo_load_node(perl_yaml_xs_t *self)
 {
