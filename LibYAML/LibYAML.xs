@@ -178,8 +178,8 @@ load_string(SV *object, SV *string)
 
         XCPT_CATCH
         {
-            XCPT_RETHROW;
             yaml_parser_delete(&yaml->parser);
+            XCPT_RETHROW;
         }
 
         XSRETURN(multi);
@@ -250,8 +250,8 @@ dump_string(SV *object, ...)
 
         XCPT_CATCH
         {
-            XCPT_RETHROW;
             yaml_emitter_delete(&yaml->emitter);
+            XCPT_RETHROW;
         }
 
         XPUSHs(string);
