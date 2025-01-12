@@ -15,8 +15,14 @@ YAML::XS - Perl YAML Serialization using XS and libyaml
 
     use YAML::XS;
 
+    # Classic functional interface
     my $yaml = Dump [ 1..4 ];
     my $array = Load $yaml;
+
+    # Object oriented interface supporting YAML 1.2
+    my $xs = YAML::XS->new;
+    my $yaml = $xs->dump_string([ 1..4 ]);
+    my $array = $xs->load_string($yaml);
 
 =head1 DESCRIPTION
 
@@ -27,6 +33,8 @@ This module is a Perl XS binding to libyaml which offers Perl the best YAML supp
 This module exports the functions C<Dump>, C<Load>, C<DumpFile> and C<LoadFile>. These functions are intended to work exactly like C<YAML.pm>'s corresponding functions. Only C<Load> and C<Dump> are exported by default.
 
 =head1 CONFIGURATION
+
+The new object oriented interface is described below: L<"OBJECT ORIENTED INTERFACE">
 
 =over
 
@@ -115,6 +123,129 @@ If you simply need to load "perl booleans" that are true or false in boolean con
 Default is 2.
 
 Sets the number of spaces for indentation for C<Dump>.
+
+=back
+
+=head1 OBJECT ORIENTED INTERFACE
+
+Since version v0.903.0
+
+This has two major differences to the old functional interface:
+
+=over
+
+=item Object with options
+
+This provides an interface where you can create a YAML::XS object with
+options (instead of the old interface with global variables).
+
+=item YAML 1.2 support
+
+Also it implements the YAML 1.2 Core Schema, while the old interface
+implements its own schema which is not compatible with any other module.
+This is about resolving scalar values like C<null>, C<true>, C<23> as
+C<undef>, boolean, number.
+
+* YAML 1.1 / 1.2 definitions: L<https://perlpunk.github.io/yaml-test-schema/schemas.html>
+* Test data: L<https://perlpunk.github.io/yaml-test-schema/data.html>
+
+=back
+
+=head2 METHODS
+
+=over
+
+=head3 new
+
+    use YAML::XS;
+    my $xs = YAML::XS->new(
+        # load options
+        # require_footer => 0,
+
+        # dump options
+        # indent => 2,
+        # utf8 => 0,
+        # header => 1,
+        # footer => 0,
+        # width => 80,
+        # anchor_prefix => '',
+    );
+
+Options:
+
+=over
+
+=item indent
+
+Default: 2
+
+Sets the number of spaces for indentation for dumping.
+
+=item utf8
+
+Default: 0
+
+If set to 1, the output from dumping will be utf8 encoded.
+
+=item header
+
+Default: 1
+
+Writes a C<---> before every document
+
+=item footer
+
+Default: 0
+
+Writes a C<...> at the end of every document.
+
+=item width
+
+=item require_footer
+
+Default: 0
+
+Can be useful in a use case where you want to make sure you received the
+complete document from the sender.
+
+=item anchor_prefix
+
+Default: C<''>
+
+If set to a string like C<ANCHOR>, anchors and aliases will be prefixed
+with this instead of just being numbers:
+
+    # my $hash = { some => "mapping" };
+    # say $xs->dump_string([$hash, $hash]);
+    - &ANCHOR1
+      some: mapping
+    - *ANCHOR1
+
+=back
+
+=item load_string
+
+    my $yaml = <<'EOM';
+    ---
+    - 23
+    ---
+    some: mapping
+    EOM
+    my $array = $xs->load_string($yaml);
+    # [23]
+    my @documents = $xs->load_string($yaml);
+    # [
+    #   [23],
+    #   { some => "mapping" }
+    # ]
+
+In scalar context, if the YAML string contains more than one document, it will
+return the first document.
+
+=item dump_string
+
+    my $yaml = $xs->dump_string($data);
+    my $yaml = $xs->dump_string($data1, $data2, $data3);
 
 =back
 
